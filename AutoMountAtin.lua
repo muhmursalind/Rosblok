@@ -18,25 +18,41 @@ local function instantTeleport()
     hrp.CFrame = CFrame.new(targetPosition)
 end
 
-queue_on_teleport([[
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/muhmursalind/Rosblok/refs/heads/main/AutoMountAtin.lua"))()
-]])
-
 local function teleportAndRejoin()
     instantTeleport()
     wait(5)
     TeleportService:TeleportToPlaceInstance(PlaceId, JobId)
 end
 
--- Jalankan loop saat karakter spawn
 player.CharacterAdded:Connect(function()
     wait(1)
     teleportAndRejoin()
 end)
 
--- Jika karakter sudah ada saat script mulai, jalankan loop sekali
 if player.Character then
     wait(1)
     teleportAndRejoin()
 end
-TeleportService:TeleportToPlaceInstance(PlaceId, JobId)
+
+queue_on_teleport([[
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/muhmursalind/Rosblok/refs/heads/main/AutoMountAtin.lua"))()
+]])
+
+-- Fungsi cek semua TextLabel di PlayerGui apakah ada yang bertuliskan "checkpoint saved"
+local function checkForCheckpoint()
+    for _, guiObject in ipairs(player.PlayerGui:GetDescendants()) do
+        if guiObject:IsA("TextLabel") then
+            if guiObject.Text:lower() == "checkpoint saved" then
+                TeleportService:TeleportToPlaceInstance(PlaceId, JobId)
+                break
+            end
+        end
+    end
+end
+
+-- Bisa dijalankan terus menerus dengan event ChildAdded agar realtime cek saat muncul label baru
+player.PlayerGui.DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("TextLabel") and descendant.Text:lower() == "checkpoint saved" then
+        TeleportService:TeleportToPlaceInstance(PlaceId, JobId)
+    end
+end)
