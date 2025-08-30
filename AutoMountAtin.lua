@@ -13,7 +13,7 @@ local targetPosition = Vector3.new(781.18, 2165.92, 3921.32)
 
 -- Queue script supaya otomatis reload saat teleport/rejoin
 queue_on_teleport([[
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/scytheXlol/Scripts/refs/heads/main/Expedition%20Antarctica.lua"))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/muhmursalind/Rosblok/refs/heads/main/AutoMountAtin.lua"))()
 ]])
 
 -- Fungsi teleport instan ke koordinat
