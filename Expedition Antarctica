@@ -1,0 +1,481 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Library UI: Fluent
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "MDVK",
+    SubTitle = "Expedition Antarctica | by one",
+    TabWidth = 120,
+    Size = UDim2.fromOffset(500, 350),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+-- Tabs
+local Tabs = {
+    Expedition = Window:AddTab({ Title = "Auto Expedition", Icon = "compass" }),
+    Player     = Window:AddTab({ Title = "Player", Icon = "user" }),
+    Teleport   = Window:AddTab({ Title = "Teleport", Icon = "map-pin" }),
+    Settings   = Window:AddTab({ Title = "Settings", Icon = "settings" }),
+}
+
+-- Konstanta & State
+local DEFAULTS = {
+    WalkSpeed = 16,
+    JumpPower = 50,
+    JumpPause = 3,
+    JumpResume = 5,
+    SpawnWait = 60,
+    RespawnMode = "Reset"
+}
+
+local ExpeditionCamps = {
+    {Name = "Spawn", CFrame = CFrame.new(-6223.5, -130.6, -53.6)},
+    {Name = "Camp 1", CFrame = CFrame.new(-3718.6, 227.4, 235.6)},
+    {Name = "Camp 2", CFrame = CFrame.new(1789.7, 107.8, -137)},
+    {Name = "Camp 3", CFrame = CFrame.new(5892.1, 323.4, -20.3)},
+    {Name = "Camp 4", CFrame = CFrame.new(8992.2, 598, 102.6)},
+    {Name = "South Pole", CFrame = CFrame.new(11001.9, 551.5, 103)}
+}
+
+local FillBottle = {
+    {Name = "Spawn", CFrame = CFrame.new(-6043.54, -153.77, -59.85)},
+    {Name = "Camp 1", CFrame = CFrame.new(-3718.16, 234.25, 264.89)},
+    {Name = "Camp 2", CFrame = CFrame.new(1800.08, 110.59, -163.70)},
+    {Name = "Camp 3", CFrame = CFrame.new(5884.71, 326.25, 6.50)},
+    {Name = "Camp 4", CFrame = CFrame.new(9000.66, 602.63, 84.90)}
+}
+
+local currentCampIndex = 2
+local loopCountTarget, completedLoops = 0, 0
+local isExpeditionRunning, isTeleporting, isJumpLoopActive = false, false, false
+local jumpPauseTime, jumpResumeTime, spawnWaitTime = DEFAULTS.JumpPause, DEFAULTS.JumpResume, DEFAULTS.SpawnWait
+local respawnMode = DEFAULTS.RespawnMode
+local jumpTask, cameraConnection = nil, nil
+local noFallDamageEnabled = false
+
+-- Utility
+local function notify(title, content, duration)
+    Fluent:Notify({Title = title, Content = content, Duration = duration or 3})
+end
+
+local function isAtSpawn(pos)
+    return (pos - ExpeditionCamps[1].CFrame.Position).Magnitude <= 100
+end
+
+local function resetCharacter()
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.Health = 0 end
+end
+
+-- Jump & Anti Stuck
+local function isBlockedByObject(humanoid)
+    local root = humanoid.RootPart or (humanoid.Parent and humanoid.Parent:FindFirstChild("HumanoidRootPart"))
+    if not root then return false end
+    local result = workspace:Raycast(root.Position, Vector3.new(0, -4, 0), RaycastParams.new())
+    return result ~= nil
+end
+
+local function jumpIfStuck()
+    if isTeleporting then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum, root = char:FindFirstChildOfClass("Humanoid"), char:FindFirstChild("HumanoidRootPart")
+    if hum and root and hum.Health > 0 and isBlockedByObject(hum) and not isAtSpawn(root.Position) then
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end
+
+local function startJumpLoop()
+    if jumpTask then return end
+    isJumpLoopActive = true
+    jumpTask = task.spawn(function()
+        while isJumpLoopActive and isExpeditionRunning do
+            jumpIfStuck()
+            task.wait(2)
+        end
+        jumpTask = nil
+    end)
+end
+
+local function stopJumpLoop()
+    isJumpLoopActive = false
+    if jumpTask then task.cancel(jumpTask) jumpTask = nil end
+end
+
+-- Camera
+local function detachCamera()
+    if cameraConnection then cameraConnection:Disconnect() cameraConnection = nil end
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+end
+
+-- Player Control
+local hydrationLabel = LocalPlayer.PlayerGui:WaitForChild("Info Bar"):WaitForChild("Frame"):WaitForChild("Hydration Percent")
+
+
+local function getHydrationPercent()
+    local hydrationLabel = LocalPlayer.PlayerGui:WaitForChild("Info Bar"):WaitForChild("Frame"):WaitForChild("Hydration Percent")
+    local text = hydrationLabel.Text or ""
+    local num = text:match("(%d+)%%")
+    return tonumber(num)
+end
+
+local function equipItem(itemName)
+    local backpack = LocalPlayer:WaitForChild("Backpack")
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local tool = backpack:FindFirstChild(itemName)
+    if tool then tool.Parent = char return tool end
+    return char:FindFirstChild(itemName)
+end
+
+local function unequipItem(itemName)
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local tool = char:FindFirstChild(itemName)
+    if tool then
+        tool.Parent = LocalPlayer:WaitForChild("Backpack")
+    end
+end
+
+local function drinkWater()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local bottle = char:FindFirstChild("Water Bottle") or equipItem("Water Bottle")
+    if bottle and bottle:FindFirstChild("RemoteEvent") then
+        bottle.RemoteEvent:FireServer()
+    end
+end
+
+local function autoHydrate()
+    local percent = getHydrationPercent()
+    if percent and percent <= 70 then
+        while percent and percent < 100 do
+            drinkWater()
+            task.wait(2)
+            percent = getHydrationPercent()
+        end
+        unequipItem("Water Bottle")
+    end
+end
+
+local function updateFallDamage(char)
+    if not char then return end
+    for _, obj in ipairs(char:GetDescendants()) do
+        if obj:IsA("Script") and obj.Name == "Client_Fall_Damage" then
+            obj.Disabled = noFallDamageEnabled
+        end
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    updateFallDamage(char)
+    char.DescendantAdded:Connect(function(obj)
+        if obj:IsA("Script") and obj.Name == "Client_Fall_Damage" then
+            obj.Disabled = noFallDamageEnabled
+        end
+    end)
+end)
+
+-- Teleport
+local function teleportTo(cframe)
+    isTeleporting = true
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart")
+
+    stopJumpLoop()
+    task.wait(jumpPauseTime)
+
+    root.Anchored = true
+    root.Velocity = Vector3.zero
+    root.RotVelocity = Vector3.zero
+    root.CFrame = cframe
+
+    task.wait(5)
+
+    root.Anchored = false
+    task.wait(jumpResumeTime)
+    isTeleporting = false
+
+    if isExpeditionRunning then startJumpLoop() end
+end
+
+local function teleportWithHover(cframe, hoverTime)
+    hoverTime = hoverTime or 5
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart")
+
+    root.Anchored = true
+    root.Velocity = Vector3.zero
+    root.RotVelocity = Vector3.zero
+    root.CFrame = cframe
+
+    task.wait(hoverTime)
+
+    root.Anchored = false
+end
+
+-- Expedition Control
+local function stopExpedition()
+    isExpeditionRunning, currentCampIndex, completedLoops = false, 2, 0
+    stopJumpLoop()
+    detachCamera()
+end
+
+-- Anti AFK
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.zero, workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.zero, workspace.CurrentCamera.CFrame)
+end)
+
+-- Expedition Listener
+RunService.RenderStepped:Connect(function()
+    if not isExpeditionRunning then return end
+
+    autoHydrate()
+
+    for _, desc in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+        if desc:IsA("TextLabel") and desc.Visible and desc.Text:find("You have made it to") then
+            local expectedCamp = ExpeditionCamps[currentCampIndex]
+            if desc.Text:find(expectedCamp.Name) then
+                currentCampIndex += 1
+                if expectedCamp.Name ~= "South Pole" then
+                    notify("Camp Reached", expectedCamp.Name.." reached. Filling bottle first...", 2)
+
+                    local fill = FillBottle[currentCampIndex - 1]
+                    if fill then
+                        teleportTo(fill.CFrame)
+                        --task.wait(3)
+                    end
+
+                    teleportTo(ExpeditionCamps[currentCampIndex].CFrame)
+
+                else
+                    completedLoops += 1
+                    notify("South Pole Reached", "Handling return...", 2)
+                    if respawnMode == "WaitThenSpawn" then
+                        teleportTo(ExpeditionCamps[1].CFrame)
+                        notify("Spawn", "Waiting "..spawnWaitTime.." seconds", spawnWaitTime)
+                        task.wait(spawnWaitTime)
+                    else
+                        task.wait(5) resetCharacter() task.wait(3)
+                        teleportTo(ExpeditionCamps[1].CFrame)
+                        notify("Spawn", "Waiting "..spawnWaitTime.." seconds", spawnWaitTime)
+                        task.wait(spawnWaitTime)
+                    end
+
+                    if loopCountTarget > 0 and completedLoops >= loopCountTarget then
+                        notify("Expedition Complete", "You have completed "..loopCountTarget.." loops.", 5)
+                        stopExpedition()
+                    else
+                        currentCampIndex = 2
+                        teleportTo(ExpeditionCamps[currentCampIndex].CFrame)
+                    end
+                end
+                break
+            end
+        end
+    end
+end)
+
+-- Expedition Tab
+Tabs.Expedition:AddToggle("AutoExpedition", {
+    Title = "Start Expedition",
+    Default = false,
+    Callback = function(on)
+        if on and not isExpeditionRunning then
+            isExpeditionRunning, currentCampIndex, completedLoops = true, 2, 0
+            notify("Expedition Started","Starting at Camp 1",5)
+            startJumpLoop()
+            teleportTo(ExpeditionCamps[currentCampIndex].CFrame)
+        else
+            stopExpedition()
+            notify("Expedition Stopped","Stopped by user.",5)
+        end
+    end
+})
+
+-- Player Tab
+local function setDefaults()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed, hum.JumpPower, hum.UseJumpPower = DEFAULTS.WalkSpeed, DEFAULTS.JumpPower, true
+    end
+end
+
+setDefaults()
+LocalPlayer.CharacterAdded:Connect(function() task.wait(1) setDefaults() end)
+
+Tabs.Player:AddToggle("NoFallDamage", {
+    Title = "No Fall Damage",
+    Default = false,
+    Callback = function(value)
+        noFallDamageEnabled = value
+        updateFallDamage(LocalPlayer.Character)
+    end
+})
+
+Tabs.Player:AddSlider("WalkSpeed", {
+    Title = "WalkSpeed",
+    Description = "Adjust movement speed",
+    Default = DEFAULTS.WalkSpeed,
+    Min = 0,
+    Max = 200,
+    Rounding = 1,
+    Callback = function(v)
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = v end
+    end
+})
+
+Tabs.Player:AddSlider("JumpPower", {
+    Title = "JumpPower",
+    Default = DEFAULTS.JumpPower,
+    Min = 0,
+    Max = 300,
+    Rounding = 1,
+    Callback = function(v)
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.JumpPower, hum.UseJumpPower = v, true end
+    end
+})
+
+Tabs.Player:AddButton({
+    Title = "Reset ke Default",
+    Callback = function() setDefaults() notify("Reset Done","Defaults restored",3) end
+})
+
+local function createTeleportButton(name, campIndex)
+    Tabs.Teleport:AddButton({
+        Title = name,
+        Callback = function()
+            local targetCFrame = ExpeditionCamps[campIndex].CFrame
+            teleportWithHover(targetCFrame, 5)
+        end
+    })
+end
+
+createTeleportButton("Basecamp", 1)
+createTeleportButton("Checkpoint 1", 2)
+createTeleportButton("Checkpoint 2", 3)
+createTeleportButton("Checkpoint 3", 4)
+createTeleportButton("Checkpoint 4", 5)
+createTeleportButton("South Pole", 6)
+
+-- Windows Manager
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+
+SaveManager:IgnoreThemeSettings()
+
+SaveManager:SetIgnoreIndexes({})
+
+-- InterfaceManager:SetFolder("FluentScriptHub")
+-- SaveManager:SetFolder("FluentScriptHub/specific-game")
+
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+
+Window:SelectTab(1)
+
+Fluent:Notify({
+    Title = "Expedition Antarctica | by one",
+    Content = "The script has been loaded.",
+    Duration = 8
+})
+
+SaveManager:LoadAutoloadConfig()
+
+-- Floating Button (≡ Menu) untuk minimize
+local FloatingGui = Instance.new("ScreenGui")
+FloatingGui.Name = "FluentFloatingButton"
+FloatingGui.ResetOnSpawn = false
+FloatingGui.Parent = game:GetService("CoreGui")
+
+local FloatingButton = Instance.new("TextButton")
+FloatingButton.Size = UDim2.new(0, 80, 0, 28)
+FloatingButton.Position = UDim2.new(0.5, -40, 0, 10)
+FloatingButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+FloatingButton.BackgroundTransparency = 0.4
+FloatingButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatingButton.Text = "Menu"
+FloatingButton.Font = Enum.Font.GothamBold
+FloatingButton.TextSize = 13
+FloatingButton.Visible = false
+FloatingButton.AutoButtonColor = true
+FloatingButton.Parent = FloatingGui
+FloatingButton.ZIndex = 9999
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 6)
+UICorner.Parent = FloatingButton
+
+if UserInputService.TouchEnabled then
+    FloatingButton.Size = UDim2.new(0, 100, 0, 36)
+    FloatingButton.TextSize = 15
+end
+
+-- Dragging
+local dragging = false
+local dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    local goal = UDim2.new(
+        startPos.X.Scale, startPos.X.Offset + delta.X,
+        startPos.Y.Scale, startPos.Y.Offset + delta.Y
+    )
+    TweenService:Create(FloatingButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Position = goal
+    }):Play()
+end
+FloatingButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = FloatingButton.Position
+        TweenService:Create(FloatingButton, TweenInfo.new(0.2), {BackgroundTransparency = 0.1}):Play()
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                TweenService:Create(FloatingButton, TweenInfo.new(0.5), {BackgroundTransparency = 0.4}):Play()
+            end
+        end)
+    end
+end)
+FloatingButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement 
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- Minimize Behavior
+function Window:Minimize()
+    Window.Minimized = not Window.Minimized
+    Window.Root.Visible = not Window.Minimized
+    FloatingButton.Visible = Window.Minimized
+end
+FloatingButton.MouseButton1Click:Connect(function()
+    if not dragging then
+        Window.Minimized = false
+        Window.Root.Visible = true
+        FloatingButton.Visible = false
+    end
+end)
