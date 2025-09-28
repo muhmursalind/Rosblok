@@ -2,8 +2,8 @@ local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
 
-local JobId = game.JobId
 local PlaceId = game.PlaceId
+local JobId = game.JobId
 local PrivateServerId = game.PrivateServerId
 local IsPrivateServer = PrivateServerId and PrivateServerId ~= ""
 
@@ -16,7 +16,7 @@ local function teleportToPosition(position)
     hrp.CFrame = CFrame.new(position)
 end
 
-local function hasFriendInServer()
+local function hasFriendInCurrentServer()
     for _, otherPlayer in ipairs(Players:GetPlayers()) do
         if otherPlayer ~= player then
             local success, isFriend = pcall(function()
@@ -33,15 +33,15 @@ end
 
 local function teleportBack()
     if IsPrivateServer then
-        if hasFriendInServer() then
-            print("Rejoining private server with friend...")
+        if hasFriendInCurrentServer() then
+            print("Rejoining current private server with friend...")
             TeleportService:TeleportToPlaceInstance(PlaceId, JobId)
         else
-            print("Rejoining current private server (no friend found)...")
-            TeleportService:TeleportToPlaceInstance(PlaceId, JobId)
+            print("No friends in this private server. Joining public server...")
+            TeleportService:Teleport(PlaceId)
         end
     else
-        print("Rejoining to a public server...")
+        print("In public server. Joining random public server...")
         TeleportService:Teleport(PlaceId)
     end
 end
