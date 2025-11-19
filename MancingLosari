@@ -7,7 +7,7 @@ local SellChoiceEvent = ReplicatedStorage:WaitForChild("SellChoiceEvent")
 local DropMoneyRemote
 
 local autoFishing, autoSell, autoDrop = false, false, false
-local fishDelay, sellDelay, dropDelay = 0, 10, 10
+local fishDelay, sellDelay, dropDelay = 0, 10, 3
 local dropAmount = 1000000
 
 local dropOptions, optionLabels = {}, {}
@@ -76,9 +76,7 @@ Tab:CreateButton({
 })
 
 Tab:CreateToggle({Name = "Auto Drop", CurrentValue = false, Callback = function(v) autoDrop = v end})
-Tab:CreateSlider({Name = "Drop Delay (s)", Range = {1,60}, Increment = 1, CurrentValue = 10, Callback = function(v) dropDelay = v end})
-
-Tab:CreateKeybind({Name = "Toggle UI", CurrentKeybind = "RightShift", HoldToInteract = false, Callback = function() Window:Toggle() end})
+Tab:CreateSlider({Name = "Drop Delay (s)", Range = {0,3}, Increment = 1, CurrentValue = 3, Callback = function(v) dropDelay = v end})
 
 local function loop(condition, action, delay)
 	task.spawn(function()
