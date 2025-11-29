@@ -1,0 +1,132 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "MDVKLuaX",
+   LoadingTitle = "MDVKLuaX",
+   LoadingSubtitle = "by NeuF",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil,
+      FileName = "FishingConfig"
+   }
+})
+
+local MainTab = Window:CreateTab("Main", 4483362458)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CastEvent = ReplicatedStorage.Remotes.CastEvent
+local MiniGame = ReplicatedStorage.Remotes.MiniGame
+local SellEvent = ReplicatedStorage.SellEvent
+
+local autoFishEnabled = false
+local autoSellAllEnabled = false
+local autoSellHeldEnabled = false
+local fishingDelay = 1
+local sellDelay = 1
+
+local FishingSection = MainTab:CreateSection("Auto Fishing")
+
+local AutoFishToggle = MainTab:CreateToggle({
+   Name = "Auto Fishing",
+   CurrentValue = false,
+   Flag = "AutoFish",
+   Callback = function(Value)
+      autoFishEnabled = Value
+      if autoFishEnabled then
+         spawn(function()
+            while autoFishEnabled do
+               CastEvent:FireServer(false, 100)
+               wait(0.1)
+               MiniGame:FireServer(true)
+               wait(fishingDelay)
+            end
+         end)
+      end
+   end,
+})
+
+local FishingDelaySlider = MainTab:CreateSlider({
+   Name = "Fishing Delay (seconds)",
+   Range = {0.1, 10},
+   Increment = 0.1,
+   Suffix = "s",
+   CurrentValue = 1,
+   Flag = "FishingDelay",
+   Callback = function(Value)
+      fishingDelay = Value
+   end,
+})
+
+local SellSection = MainTab:CreateSection("Auto Sell")
+
+local AutoSellHeldToggle = MainTab:CreateToggle({
+   Name = "Auto Sell Held Item",
+   CurrentValue = false,
+   Flag = "AutoSellHeld",
+   Callback = function(Value)
+      autoSellHeldEnabled = Value
+      if autoSellHeldEnabled then
+         spawn(function()
+            while autoSellHeldEnabled do
+               SellEvent:FireServer("SellHeld")
+               wait(sellDelay)
+            end
+         end)
+      end
+   end,
+})
+
+local AutoSellAllToggle = MainTab:CreateToggle({
+   Name = "Auto Sell All",
+   CurrentValue = false,
+   Flag = "AutoSellAll",
+   Callback = function(Value)
+      autoSellAllEnabled = Value
+      if autoSellAllEnabled then
+         spawn(function()
+            while autoSellAllEnabled do
+               SellEvent:FireServer("SellAll")
+               wait(sellDelay)
+            end
+         end)
+      end
+   end,
+})
+
+local SellDelaySlider = MainTab:CreateSlider({
+   Name = "Sell Delay (seconds)",
+   Range = {0.1, 10},
+   Increment = 0.1,
+   Suffix = "s",
+   CurrentValue = 1,
+   Flag = "SellDelay",
+   Callback = function(Value)
+      sellDelay = Value
+   end,
+})
+
+local SellHeldButton = MainTab:CreateButton({
+   Name = "Sell Held Item (Once)",
+   Callback = function()
+      SellEvent:FireServer("SellHeld")
+      Rayfield:Notify({
+         Title = "Sell",
+         Content = "Sold held item!",
+         Duration = 2,
+         Image = 4483362458,
+      })
+   end,
+})
+
+local SellAllButton = MainTab:CreateButton({
+   Name = "Sell All Items (Once)",
+   Callback = function()
+      SellEvent:FireServer("SellAll")
+      Rayfield:Notify({
+         Title = "Sell",
+         Content = "Sold all items!",
+         Duration = 2,
+         Image = 4483362458,
+      })
+   end,
+})
