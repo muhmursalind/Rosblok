@@ -34,6 +34,7 @@ local FishTable = {
     {name = "Monster Shark", maxKg = 500, rarity = "Unknown"},
     {name = "Lava Megalodon", maxKg = 1000, rarity = "Unknown"},
     {name = "Zombie Megalodon", maxKg = 900, rarity = "Unknown"},
+    {name = "Megalodon", maxKg = 900, rarity = "Unknown"},
     {name = "Kraken", maxKg = 850, rarity = "Unknown"},
     {name = "Naga Keramat", maxKg = 850, rarity = "Unknown"}
 }
