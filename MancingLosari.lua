@@ -7,7 +7,11 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local FishGiver = ReplicatedStorage:WaitForChild("FishingSystem"):WaitForChild("FishGiver")
 local SellFish = ReplicatedStorage:WaitForChild("FishingSystem"):WaitForChild("SellFish")
+local DropMoney = ReplicatedStorage:WaitForChild("DropMoney")
 
+-- ========================================
+-- FISH DATA
+-- ========================================
 local FishTable = {
     {name = "BlueFish", maxKg = 50, rarity = "Common"},
     {name = "Boar Fish", maxKg = 50, rarity = "Common"},
@@ -46,6 +50,18 @@ for i, fish in ipairs(FishTable) do
     table.insert(FishNameList, fish.name)
 end
 
+local MoneyAmountList = {}
+local MoneyAmountLookup = {}
+
+for i = 1, 10 do
+    local label = tostring(i) .. " Juta"
+    MoneyAmountList[i] = label
+    MoneyAmountLookup[label] = i * 1000000
+end
+
+-- ========================================
+-- VARIABLES
+-- ========================================
 local AutoFishGiver = false
 local AutoSellFish = false
 local SelectedFish = FishTable[1]
@@ -53,6 +69,11 @@ local DelayAmount = 1
 local SellDelayAmount = 5
 local Connection
 local SellConnection
+
+local AutoDropMoney = false
+local SelectedDropAmount = 1000000
+local MinDropDelay, MaxDropDelay = 5, 10
+local DropMoneyThread
 
 local Character
 local HumanoidRootPart
@@ -75,6 +96,9 @@ local function GetPlayerPosition()
     return Vector3.new(0, 0, 0)
 end
 
+-- ========================================
+-- FISH GIVE FUNCTIONS
+-- ========================================
 local function GiveFish(fish)
     local hookPosition = GetPlayerPosition()
     
@@ -186,15 +210,25 @@ local function StopAutoSellFish()
     end
 end
 
+-- ========================================
+-- PLAYER FUNCTIONS
+-- ========================================
 local function GetAllPlayers()
     local playerList = {}
+    
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             table.insert(playerList, player.Name)
         end
     end
+
+    table.sort(playerList, function(a, b)
+        return string.lower(a) < string.lower(b)
+    end)
+
     return playerList
 end
+
 
 local function TeleportToPlayer(targetPlayerName)
     local targetPlayer = Players:FindFirstChild(targetPlayerName)
@@ -203,14 +237,39 @@ local function TeleportToPlayer(targetPlayerName)
         return false
     end
     
+    UpdateCharacterCache()
+
     local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not targetRoot or not HumanoidRootPart then
         warn("[Teleport] Failed to get root parts")
         return false
     end
-    
+
     HumanoidRootPart.CFrame = targetRoot.CFrame
     return true
+end
+
+-- ========================================
+-- AUTO DROP MONEY FUNCTIONS
+-- ========================================
+local function StartAutoDropMoney()
+    if DropMoneyThread then return end
+
+    DropMoneyThread = task.spawn(function()
+        while AutoDropMoney do
+            pcall(function()
+                DropMoney:FireServer(SelectedDropAmount)
+            end)
+
+            local delayTime = math.random(MinDropDelay, MaxDropDelay)
+            task.wait(delayTime)
+        end
+        DropMoneyThread = nil
+    end)
+end
+
+local function StopAutoDropMoney()
+    AutoDropMoney = false
 end
 
 -- ========================================
@@ -379,6 +438,66 @@ MainTab:Slider({
     end
 })
 
+MainTab:Section({
+    Title = "Drop Money"
+})
+
+MainTab:Dropdown({
+    Title = "Amount",
+    Desc = "Pilih jumlah uang",
+    Values = MoneyAmountList,
+    Value = MoneyAmountList[1],
+    Callback = function(selectedLabel)
+        local amount = MoneyAmountLookup[selectedLabel]
+        if amount then
+            SelectedDropAmount = amount
+            WindUI:Notify({
+                Title = "Drop Amount Selected",
+                Content = selectedLabel .. " (" .. tostring(amount) .. ")",
+                Duration = 2
+            })
+        end
+    end
+})
+
+MainTab:Button({
+    Title = "Drop Sekali",
+    Desc = "Drop uang sekali",
+    Callback = function()
+        pcall(function()
+            DropMoney:FireServer(SelectedDropAmount)
+        end)
+        WindUI:Notify({
+            Title = "Drop Money",
+            Content = "Dropped: " .. tostring(SelectedDropAmount),
+            Duration = 2
+        })
+    end
+})
+
+MainTab:Toggle({
+    Title = "Auto Drop Money",
+    Desc = "Random delay 5-10 detik",
+    Callback = function(state)
+        AutoDropMoney = state
+        if state then
+            StartAutoDropMoney()
+            WindUI:Notify({
+                Title = "Auto Drop Money",
+                Content = "Started!",
+                Duration = 2
+            })
+        else
+            StopAutoDropMoney()
+            WindUI:Notify({
+                Title = "Auto Drop Money",
+                Content = "Stopped!",
+                Duration = 2
+            })
+        end
+    end
+})
+
 -- ========================================
 -- TAB 2: PLAYER
 -- ========================================
@@ -387,37 +506,74 @@ local PlayerTab = Window:Tab({
     Icon = "user"
 })
 
-local function GeneratePlayerDropdownValues()
-    local playerList = {}
-    for _, playerName in ipairs(GetAllPlayers()) do
-        table.insert(playerList, {
-            Title = playerName,
-            Icon = "user",
-            Callback = function()
-                if TeleportToPlayer(playerName) then
-                    WindUI:Notify({
-                        Title = "Teleported",
-                        Content = "To: " .. playerName,
-                        Duration = 2
-                    })
-                end
-            end
-        })
+local SelectedPlayerName = nil
+local TeleportDropdown
+
+local function RefreshTeleportDropdown()
+    local players = GetAllPlayers()
+
+    if TeleportDropdown then
+        TeleportDropdown:SetValues(players)
     end
-    return playerList
+
+    if #players > 0 then
+        SelectedPlayerName = players[1]
+    else
+        SelectedPlayerName = nil
+    end
 end
 
-local TeleportDropdown = PlayerTab:Dropdown({
-    Title = "Teleport To Player",
-    Desc = "Select player to teleport",
-    Values = GeneratePlayerDropdownValues()
+TeleportDropdown = PlayerTab:Dropdown({
+    Title = "Player List",
+    Desc = "Pilih player",
+    Values = GetAllPlayers(),
+    Callback = function(selectedName)
+        SelectedPlayerName = selectedName
+
+        if SelectedPlayerName then
+            WindUI:Notify({
+                Title = "Player Selected",
+                Content = "Selected: " .. SelectedPlayerName,
+                Duration = 2
+            })
+        end
+    end
+})
+
+PlayerTab:Button({
+    Title = "Teleport",
+    Desc = "Teleport ke player yang dipilih",
+    Callback = function()
+        if not SelectedPlayerName then
+            WindUI:Notify({
+                Title = "Teleport",
+                Content = "Pilih player dulu!",
+                Duration = 2
+            })
+            return
+        end
+
+        if TeleportToPlayer(SelectedPlayerName) then
+            WindUI:Notify({
+                Title = "Teleported",
+                Content = "To: " .. SelectedPlayerName,
+                Duration = 2
+            })
+        else
+            WindUI:Notify({
+                Title = "Teleport Failed",
+                Content = "Tidak bisa teleport ke: " .. tostring(SelectedPlayerName),
+                Duration = 2
+            })
+        end
+    end
 })
 
 PlayerTab:Button({
     Title = "Refresh Player List",
-    Desc = "Update teleport player list",
+    Desc = "Update daftar player",
     Callback = function()
-        TeleportDropdown:SetValues(GeneratePlayerDropdownValues())
+        RefreshTeleportDropdown()
         WindUI:Notify({
             Title = "Player List",
             Content = "Refreshed! Total: " .. #GetAllPlayers(),
@@ -444,7 +600,6 @@ PlayerTab:Button({
 -- ========================================
 -- EVENT HANDLERS
 -- ========================================
-
 LocalPlayer.CharacterAdded:Connect(function(newCharacter)
     task.wait(0.5)
     UpdateCharacterCache()
@@ -454,6 +609,7 @@ game:GetService("CoreGui").DescendantRemoving:Connect(function(obj)
     if obj.Name == "WindUI" then
         StopAutoFishGiver()
         StopAutoSellFish()
+        StopAutoDropMoney()
     end
 end)
 
