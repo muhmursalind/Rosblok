@@ -6,6 +6,7 @@ local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 local FishGiver = ReplicatedStorage:WaitForChild("FishingSystem"):WaitForChild("FishGiver")
+local SellFish = ReplicatedStorage:WaitForChild("FishingSystem"):WaitForChild("SellFish")
 
 local FishTable = {
     {name = "BlueFish", maxKg = 50, rarity = "Common"},
@@ -45,9 +46,12 @@ for i, fish in ipairs(FishTable) do
 end
 
 local AutoFishGiver = false
+local AutoSellFish = false
 local SelectedFish = FishTable[1]
 local DelayAmount = 1
+local SellDelayAmount = 5
 local Connection
+local SellConnection
 
 local Character
 local HumanoidRootPart
@@ -108,6 +112,79 @@ local function StopAutoFishGiver()
     end
 end
 
+-- ========================================
+-- AUTO SELL FISH FUNCTIONS
+-- ========================================
+local function GetBackpackFishData()
+    local backpack = LocalPlayer:WaitForChild("Backpack")
+    local fishList = {}
+    
+    for _, item in ipairs(backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local weight = item:GetAttribute("Weight") or item:GetAttribute("weight")
+            local rarity = item:GetAttribute("Rarity") or item:GetAttribute("rarity")
+            local fishId = item:GetAttribute("FishId") or item:GetAttribute("fishId")
+            
+            if not weight and item:FindFirstChild("Weight") then
+                weight = item.Weight.Value
+            end
+            if not rarity and item:FindFirstChild("Rarity") then
+                rarity = item.Rarity.Value
+            end
+            if not fishId and item:FindFirstChild("FishId") then
+                fishId = item.FishId.Value
+            end
+            
+            if weight and rarity and fishId then
+                table.insert(fishList, {
+                    weight = weight,
+                    rarity = rarity,
+                    fishId = fishId
+                })
+            end
+        end
+    end
+    
+    return fishList
+end
+
+local function SellAllBackpackFish()
+    local batch = GetBackpackFishData()
+    
+    if #batch == 0 then
+        return false, "No fish in backpack"
+    end
+    
+    local success = pcall(function()
+        SellFish:FireServer("SellAllBatch", batch)
+    end)
+    
+    return success, #batch
+end
+
+local function StartAutoSellFish()
+    if SellConnection then return end
+    
+    local lastSellTime = tick()
+    SellConnection = RunService.Heartbeat:Connect(function()
+        if AutoSellFish then
+            local currentTime = tick()
+            if currentTime - lastSellTime >= SellDelayAmount then
+                SellAllBackpackFish()
+                lastSellTime = currentTime
+            end
+        end
+    end)
+end
+
+local function StopAutoSellFish()
+    AutoSellFish = false
+    if SellConnection then
+        SellConnection:Disconnect()
+        SellConnection = nil
+    end
+end
+
 local function GetAllPlayers()
     local playerList = {}
     for _, player in ipairs(Players:GetPlayers()) do
@@ -150,7 +227,7 @@ local Window = WindUI:CreateWindow({
     HasOutline = true,
     
     OpenButton = {
-    Title = "MDVKLuaX",
+        Title = "MDVKLuaX",
         Size = UDim2.fromOffset(55, 55),
         CornerRadius = UDim.new(0, 12),
         StrokeThickness = 2.5,
@@ -172,6 +249,10 @@ local Window = WindUI:CreateWindow({
 local MainTab = Window:Tab({
     Title = "Main",
     Icon = "fish"
+})
+
+MainTab:Section({
+    Title = "Farm Fish"
 })
 
 local FishDropdown = MainTab:Dropdown({
@@ -210,14 +291,14 @@ MainTab:Toggle({
         if state then
             StartAutoFishGiver()
             WindUI:Notify({
-                Title = "Auto FishGiver",
+                Title = "Auto Give Fish",
                 Content = "Started!",
                 Duration = 2
             })
         else
             StopAutoFishGiver()
             WindUI:Notify({
-                Title = "Auto FishGiver",
+                Title = "Auto Give Fish",
                 Content = "Stopped!",
                 Duration = 2
             })
@@ -235,6 +316,65 @@ MainTab:Slider({
     },
     Callback = function(value)
         DelayAmount = value
+    end
+})
+
+MainTab:Section({
+    Title = "Sell Fish"
+})
+
+MainTab:Button({
+    Title = "Sell All Fish",
+    Callback = function()
+        local success, result = SellAllBackpackFish()
+        if success then
+            WindUI:Notify({
+                Title = "Fish Sold!",
+                Content = string.format("Sold %d fish from backpack", result),
+                Duration = 2
+            })
+        else
+            WindUI:Notify({
+                Title = "Sell Failed",
+                Content = result or "No fish found",
+                Duration = 2
+            })
+        end
+    end
+})
+
+MainTab:Toggle({
+    Title = "Auto Sell Fish",
+    Callback = function(state)
+        AutoSellFish = state
+        if state then
+            StartAutoSellFish()
+            WindUI:Notify({
+                Title = "Auto Sell Fish",
+                Content = "Started!",
+                Duration = 2
+            })
+        else
+            StopAutoSellFish()
+            WindUI:Notify({
+                Title = "Auto Sell Fish",
+                Content = "Stopped!",
+                Duration = 2
+            })
+        end
+    end
+})
+
+MainTab:Slider({
+    Title = "Auto Sell Delay",
+    Step = 1,
+    Value = {
+        Min = 5,
+        Max = 30,
+        Default = 5
+    },
+    Callback = function(value)
+        SellDelayAmount = value
     end
 })
 
@@ -312,6 +452,7 @@ end)
 game:GetService("CoreGui").DescendantRemoving:Connect(function(obj)
     if obj.Name == "WindUI" then
         StopAutoFishGiver()
+        StopAutoSellFish()
     end
 end)
 
