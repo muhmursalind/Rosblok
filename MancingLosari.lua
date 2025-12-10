@@ -377,16 +377,14 @@ task.spawn(function()
                     task.wait(0.5)
                     SmartClick("Hold", CastChargeTime)
                     task.wait(1)
-                end
-
-                if StateTable.fishingCaught then
-                    SmartClick("Click")
-                    task.wait(0.5)
-                end
                 
-                if StateTable.fishingInProgress and StateTable.casted then
+                elseif StateTable.fishingInProgress and StateTable.casted then
                     SmartClick("Click")
-                    task.wait(ReelClickDelay)
+                    task.wait(ReelClickDelay > 0 and ReelClickDelay or 0.05) 
+
+                elseif StateTable.fishingCaught then
+                    SmartClick("Click")
+                    task.wait(0.5) 
                 end
             end
         else
