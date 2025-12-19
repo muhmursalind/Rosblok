@@ -41,8 +41,8 @@ local FishTable = {
     {name = "Queen Crab", maxKg = 300, rarity = "Epic"}, {name = "Pink Dolphin", maxKg = 300, rarity = "Epic"},
     {name = "Plasma Shark", maxKg = 450, rarity = "Legendary"}, {name = "Ancient Relic Crocodile", maxKg = 500, rarity = "Unknown"},
     {name = "Colossal Squid", maxKg = 450, rarity = "Legendary"}, {name = "Ancient Whale", maxKg = 500, rarity = "Unknown"},
-    {name = "Monster Shark", maxKg = 500, rarity = "Unknown"}, {name = "Lava Megalodon", maxKg = 1000, rarity = "Unknown"},
-    {name = "Zombie Megalodon", maxKg = 900, rarity = "Unknown"}, {name = "Megalodon", maxKg = 1000, rarity = "Unknown"},
+    {name = "Monster Shark", maxKg = 500, rarity = "Unknown"}, {name = "Lava Megalodon", maxKg = 9999, rarity = "Unknown"},
+    {name = "Zombie Megalodon", maxKg = 900, rarity = "Unknown"}, {name = "Megalodon", maxKg = 9999, rarity = "Unknown"},
     {name = "Kraken", maxKg = 850, rarity = "Unknown"}, {name = "Naga Keramat", maxKg = 850, rarity = "Unknown"}
 }
 local FishLookup = {}
@@ -64,7 +64,7 @@ local AutoFishGiver = false
 local AutoSellFish = false
 local AutoDropMoney = false
 local SelectedFish = FishTable[1]
-local DelayAmount = 0.5
+local DelayAmount = 0.1
 local SellDelayAmount = 5
 local SelectedDropAmount = 1000000
 local MinDropDelay, MaxDropDelay = 5, 10
@@ -281,7 +281,7 @@ Tabs.Exploits:Toggle({
 })
 
 Tabs.Exploits:Slider({
-    Title = "Give Delay", Value = {Min = 0.5, Max = 10, Default = 0.5}, Step = 0.5,
+    Title = "Give Delay", Value = {Min = 0.1, Max = 10, Default = 0.1}, Step = 0.1,
     Callback = function(v) DelayAmount = v end
 })
 
