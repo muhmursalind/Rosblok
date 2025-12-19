@@ -4,14 +4,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
+-- System Variables
 local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem", 10)
 local FishGiver = FishingSystem:WaitForChild("FishGiver", 5)
 local SellFish = FishingSystem:WaitForChild("SellFish", 5)
 local TransferRequest = FishingSystem:WaitForChild("TransferRequest", 5)
-local TransferResponse = FishingSystem:WaitForChild("TransferResponse", 5)
-local TransferPrompt = FishingSystem:WaitForChild("TransferPrompt", 5)
 
-local RarityRank = {["Common"]=1, ["Uncommon"]=2, ["Rare"]=3, ["Epic"]=4, ["Legendary"]=5, ["Unknown"]=6}
+-- UI Variables (Agar bisa diakses fungsi refresh)
+local DropTradePlayer, DropTPPlayer
+
+-- Data Ikan
 local FishTable = {
     {name = "Boar Fish", minKg = 0.5, maxKg = 50, rarity = "Common"},
     {name = "Blackcap Basslet", minKg = 0.5, maxKg = 45, rarity = "Common"},
@@ -24,8 +26,6 @@ local FishTable = {
     {name = "Poop", minKg = 5, maxKg = 80, rarity = "Uncommon"},
     {name = "Dead Scary Clownfish", minKg = 4, maxKg = 75, rarity = "Uncommon"},
     {name = "Jellyfish", minKg = 3, maxKg = 65, rarity = "Uncommon"},
-    {name = "Jellyfish Blue", minKg = 3, maxKg = 65, rarity = "Uncommon"},
-    {name = "Jellyfish Yellow", minKg = 3, maxKg = 65, rarity = "Uncommon"},
     {name = "Lion Fish", minKg = 10, maxKg = 120, rarity = "Rare"},
     {name = "Luminous Fish", minKg = 12, maxKg = 130, rarity = "Rare"},
     {name = "Zombie Shark", minKg = 20, maxKg = 150, rarity = "Rare"},
@@ -35,13 +35,13 @@ local FishTable = {
     {name = "Queen Crab", minKg = 25, maxKg = 220, rarity = "Epic"},
     {name = "Pink Dolphin", minKg = 40, maxKg = 300, rarity = "Epic"},
     {name = "Ghost Fish", minKg = 40, maxKg = 300, rarity = "Epic"},
-    {name = "purple Kraken", minKg = 40, maxKg = 300, rarity = "Epic"},
     {name = "Plasma Shark", minKg = 80, maxKg = 400, rarity = "Legendary"},
     {name = "Ancient Relic Crocodile", minKg = 150, maxKg = 600, rarity = "Unknown"},
     {name = "Mega Pink", minKg = 175, maxKg = 700, rarity = "Unknown"},
     {name = "Ancient Whale", minKg = 200, maxKg = 800, rarity = "Unknown"}
 }
 
+-- Mapping Data Ikan
 local FishNames, FishDataMap = {"All Fish"}, {}
 for _, fish in ipairs(FishTable) do
     local dName = string.format("[%s] %s", fish.rarity, fish.name)
@@ -49,6 +49,7 @@ for _, fish in ipairs(FishTable) do
     FishDataMap[dName] = fish
 end
 
+-- State Variables
 local SelectedFish = FishTable[#FishTable]
 local SelectedWeightMode = "RandomKG"
 local AutoGive, GiveDelay, AutoSell, SellDelay = false, 0.1, false, 5.0
@@ -56,12 +57,23 @@ local SelectedTradePlayer, SelectedTeleportPlayer = nil, nil
 local SelectedTradeFish = "All Fish"
 local AutoGiftEnabled, isCurrentlyGifting = false, false
 
+-----------------------------------------------------------
+-- CORE FUNCTIONS
+-----------------------------------------------------------
+
 local function GetPlayerList()
     local names = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer then table.insert(names, p.Name) end
     end
+    table.sort(names, function(a, b) return a:lower() < b:lower() end)
     return names
+end
+
+local function UpdateAllPlayerLists()
+    local newList = GetPlayerList()
+    if DropTradePlayer then DropTradePlayer:SetValues(newList) end
+    if DropTPPlayer then DropTPPlayer:SetValues(newList) end
 end
 
 local function ActionSellAll()
@@ -109,9 +121,8 @@ local function ActionGiftOne()
             if isMatch then
                 isCurrentlyGifting = true
                 TransferRequest:FireServer(target, id.Value)
-                
                 local timeout = 0
-                while item.Parent == backpack and timeout < 11 do
+                while item.Parent == backpack and timeout < 5 do
                     task.wait(0.5)
                     timeout = timeout + 0.5
                 end
@@ -122,6 +133,10 @@ local function ActionGiftOne()
     end
     return false
 end
+
+-----------------------------------------------------------
+-- MAIN UI SETUP
+-----------------------------------------------------------
 
 local Window = WindUI:CreateWindow({
     Title = "MDVKLuaX | MancingYuk",
@@ -157,7 +172,6 @@ local Tabs = {
 
 --- [TAB: FISH GIVER] ---
 local SectionGen = Tabs.Main:Section({ Title = "Fishing", Opened = true })
-
 SectionGen:Dropdown({
     Title = "Select Fish",
     Values = FishNames, 
@@ -165,23 +179,18 @@ SectionGen:Dropdown({
     SearchBarEnabled = true, 
     Callback = function(val) SelectedFish = FishDataMap[val] end
 })
-
 SectionGen:Dropdown({
     Title = "Select Weight",
     Values = {"MinKG", "MaxKG", "RandomKG"}, 
     Value = "RandomKG", 
     Callback = function(val) SelectedWeightMode = val end
 })
-
-SectionGen:Divider()
-
 SectionGen:Slider({
     Title = "Delay FishGiver",
     Value = {Min = 0.1, Max = 5.0, Default = 0.5}, 
     Step = 0.1, 
     Callback = function(v) GiveDelay = v end
 })
-
 SectionGen:Toggle({
     Title = "Auto Give Fish", 
     Callback = function(state)
@@ -189,17 +198,20 @@ SectionGen:Toggle({
         task.spawn(function() while AutoGive do ActionGiveFish() task.wait(GiveDelay) end end)
     end
 })
-
+-- TAMBAHAN: Tombol Give Fish Manual
 SectionGen:Button({
-    Title = "Give Fish", 
-    Icon = "send", 
-    Callback = function() ActionGiveFish() end
+    Title = "Give Fish (Manual)", 
+    Icon = "hand", 
+    Callback = function() 
+        ActionGiveFish() 
+        WindUI:Notify({Title="Success", Content="Fish given successfully!"})
+    end
 })
 
 --- [TAB: TRADE / GIFT] ---
 local SectionGift = Tabs.Trade:Section({ Title = "Trading", Opened = true })
 
-local DropTradePlayer = SectionGift:Dropdown({
+DropTradePlayer = SectionGift:Dropdown({
     Title = "Target Player", 
     Values = GetPlayerList(), 
     SearchBarEnabled = true, 
@@ -214,26 +226,38 @@ SectionGift:Dropdown({
     Callback = function(val) SelectedTradeFish = val end
 })
 
-SectionGift:Divider()
-
 SectionGift:Toggle({
     Title = "Auto Gift Fish",
     Callback = function(state)
         AutoGiftEnabled = state
-        task.spawn(function() while AutoGiftEnabled do ActionGiftOne() task.wait(1) end end)
+        task.spawn(function() while AutoGiftEnabled do ActionGiftOne() task.wait(0.5) end end)
+    end
+})
+
+-- TAMBAHAN: Tombol Trade/Gift Fish Manual
+SectionGift:Button({
+    Title = "Gift Fish (Manual)", 
+    Icon = "send", 
+    Callback = function() 
+        local success = ActionGiftOne()
+        if success then
+            WindUI:Notify({Title="Trade", Content="Sent fish to "..tostring(SelectedTradePlayer)})
+        else
+            WindUI:Notify({Title="Error", Content="Failed to gift fish. Check player target or filter!"})
+        end
     end
 })
 
 SectionGift:Button({
-    Title = "Gift Fish", 
-    Icon = "send", 
-    Callback = function() ActionGiftOne() end
+    Title = "Manual Refresh Players", 
+    Icon = "refresh-cw", 
+    Callback = function() UpdateAllPlayerLists() end
 })
 
 --- [TAB: TELEPORT] ---
 local SectionTP = Tabs.World:Section({ Title = "Teleport", Opened = true })
 
-local DropTPPlayer = SectionTP:Dropdown({
+DropTPPlayer = SectionTP:Dropdown({
     Title = "Select Player", 
     Values = GetPlayerList(), 
     SearchBarEnabled = true, 
@@ -242,7 +266,7 @@ local DropTPPlayer = SectionTP:Dropdown({
 
 SectionTP:Button({
     Title = "Teleport to Player", 
-    Icon = "send", 
+    Icon = "map-pin", 
     Callback = function()
         local target = Players:FindFirstChild(SelectedTeleportPlayer)
         if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
@@ -251,29 +275,23 @@ SectionTP:Button({
     end
 })
 
-SectionTP:Divider()
-
 SectionTP:Button({
-    Title = "Refresh All Player Lists", 
+    Title = "Refresh List (A-Z)", 
     Icon = "refresh-ccw", 
     Callback = function()
-        local newList = GetPlayerList()
-        DropTradePlayer:SetValues(newList)
-        DropTPPlayer:SetValues(newList)
-        WindUI:Notify({Title="System", Content="Daftar pemain diperbarui."})
+        UpdateAllPlayerLists()
+        WindUI:Notify({Title="System", Content="Player list updated and sorted (A-Z)."})
     end
 })
 
 --- [TAB: ECONOMY] ---
 local SectionSell = Tabs.Economy:Section({ Title = "Selling", Opened = true })
-
 SectionSell:Slider({
     Title = "Selling Delay", 
     Value = { Min = 1.0, Max = 10.0, Default = 5.0 }, 
     Step = 1.0, 
     Callback = function(v) SellDelay = v end
 })
-
 SectionSell:Toggle({
     Title = "Auto Sell", 
     Callback = function(state)
@@ -282,17 +300,31 @@ SectionSell:Toggle({
     end
 })
 
+-- TAMBAHAN: Tombol Sell All Manual
 SectionSell:Button({
     Title = "Sell All Items", 
-    Icon = "send", 
+    Icon = "dollar-sign", 
     Callback = function() 
         local count = ActionSellAll()
-        WindUI:Notify({Title="Sale", Content="Berhasil menjual "..count.." ikan!"})
+        WindUI:Notify({Title="Economy", Content="Sold "..tostring(count).." items!"})
     end
 })
 
+-----------------------------------------------------------
+-- AUTO-UPDATE SYSTEM
+-----------------------------------------------------------
+
+Players.PlayerAdded:Connect(function()
+    task.wait(1)
+    UpdateAllPlayerLists()
+end)
+
+Players.PlayerRemoving:Connect(function()
+    UpdateAllPlayerLists()
+end)
+
 WindUI:Notify({
     Title = "MDVKLuaX",
-    Content = "Arround Makassar Loaded Successfully!",
+    Content = "System Fully Loaded with Manual Buttons!",
     Duration = 5
 })
