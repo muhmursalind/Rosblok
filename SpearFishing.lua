@@ -71,14 +71,26 @@ for _, v in pairs(FishList) do FishMap[v] = true end
 
 -- --- UI SETUP ---
 local Window = WindUI:CreateWindow({
-    Title = "Spear Elite (Boss Override)",
+    Title = "Spear Fishing Elite",
     Author = "MDVKLuaX",
-    Size = UDim2.fromOffset(550, 600),
+    Size = UDim2.fromOffset(550, 480),
     Theme = "Dark",
     Transparent = true,
     Acrylic = true,
-    Folder = "SpearOverride",
-    OpenButton = { Title = "Open", CornerRadius = UDim.new(0,10) }
+    Folder = "SpearFishingElite",
+    OpenButton = {
+        Title = "MDVKLuaX",
+        CornerRadius = UDim.new(0, 12),
+        StrokeThickness = 0,
+        Enabled = true,
+        Draggable = true,
+        OnlyMobile = false,
+        Position = UDim2.new(0.01, 0, 0.8, 0),
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromHex("#00c6ff")),
+            ColorSequenceKeypoint.new(1, Color3.fromHex("#0072ff"))
+        })
+    }
 })
 
 local Tabs = {
