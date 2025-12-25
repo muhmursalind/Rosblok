@@ -50,25 +50,6 @@ local Config = {
     MinWeight = 100 
 }
 
--- Database Nama Ikan
-local FishList = {
-    "Fish1", "Fish3", "Fish12", "Fish2", "Fish37", "Fish34", "Fish47", "Fish40", "Fish36", "Fish5", "Fish51", "Fish52", 
-    "Fish128", "Fish129", "Fish4", "Fish7", "Fish8", "Fish9", "Fish10", "Fish33", "Fish38", "Fish62", "Fish56", "Fish39", 
-    "Fish64", "Fish85", "Fish86", "Fish89", "Fish87", "Fish112", "Fish113", "Fish124", "Fish93", "Fish17", "Fish18", 
-    "Fish22", "Fish14", "Fish6", "Fish35", "Fish31", "Fish32", "Fish59", "Fish63", "Fish46", "Fish81", "Fish88", "Fish82", 
-    "Fish106", "Fish115", "Fish125", "Fish91", "Fish92", "Fish306", "Fish307", "Fish11", "Fish16", "Fish20", "Fish45", 
-    "Fish61", "Fish21", "Fish30", "Fish24", "Fish49", "Fish53", "Fish26", "Fish60", "Fish103", "Fish71", "Fish73", "Fish72", 
-    "Fish78", "Fish70", "Fish83", "Fish114", "Fish116", "Fish122", "Fish118", "Fish120", "Fish308", "Fish309", "Fish310", 
-    "Fish23", "Fish15", "Fish48", "Fish58", "Fish41", "Fish19", "Fish13", "Fish27", "Fish55", "Fish54", "Fish77", "Fish25", 
-    "Fish74", "Fish104", "Fish101", "Fish75", "Fish119", "Fish121", "Fish301", "Fish117", "Fish302", "Fish126", "Fish303", 
-    "Fish43", "Fish304", "Fish44", "Fish305", "Fish98", "Fish57", "Fish97", "Fish105", "Fish102", "Fish79", "Fish76", 
-    "Fish110", "Fish111", "Fish127", "Fish123", "Fish130", "Fish99", "Fish201", "Fish202", "Fish203", "Boss01", "Fish502", 
-    "Fish506", "Fish507", "Fish509", "Fish500", "Fish501", "Fish503", "Fish504", "Fish505", "Fish510", "Fish508", "Fish400", 
-    "Fish401", "Fish402", "Fish403", "Fish404", "Fish405"
-}
-local FishMap = {}
-for _, v in pairs(FishList) do FishMap[v] = true end
-
 -- --- UI SETUP ---
 local Window = WindUI:CreateWindow({
     Title = "Spear Fishing Elite",
@@ -159,30 +140,36 @@ local function IsTargetValid(Target)
     return true
 end
 
--- === SYSTEM PENCARI BOSS (STRUCTURE FIX) ===
 local function GetTargetBoss()
     local WorldBoss = Services.Workspace:FindFirstChild("WorldBoss")
     if not WorldBoss then return nil end
 
+    -- Loop setiap titik spawn (Point) didalam folder WorldBoss
     for _, point in ipairs(WorldBoss:GetChildren()) do
         if point then
-            -- Cari Boss01 (Anak dari Point)
-            local BossModel = point:FindFirstChild("Boss01") or point:FindFirstChildOfClass("Model")
-            
-            -- Cek apakah Boss ini hidup?
-            local HP = point:GetAttribute("CurHP") -- Biasanya HP di folder Point
-            if not HP and BossModel then HP = BossModel:GetAttribute("CurHP") end
-            
-            -- Logika: Jika ada Model DAN (Tidak ada info HP ATAU HP > 0)
-            if BossModel and (not HP or HP > 0) then
-                return BossModel
+            -- KITA CARI ANAK DARI POINT INI (BOSS ADA DI DALAMNYA)
+            for _, child in ipairs(point:GetChildren()) do
+                -- Filter: Kita hanya ambil jika itu Model atau Part (Bukan script/attachment)
+                if child:IsA("Model") or child:IsA("BasePart") then
+                    
+                    -- Cek HP untuk memastikan Boss masih hidup
+                    -- Prioritas: Cek attribute di Boss dulu, baru di Point
+                    local HP = child:GetAttribute("CurHP")
+                    if not HP then HP = point:GetAttribute("CurHP") end
+                    
+                    -- Validasi Akhir:
+                    -- 1. Jika ada HP dan HP > 0, maka ini targetnya.
+                    -- 2. Jika tidak ada attribute HP sama sekali tapi objectnya ada, kita anggap itu Boss (Fallback).
+                    if (HP and HP > 0) or (not HP) then
+                        return child
+                    end
+                end
             end
         end
     end
     return nil
 end
 
--- === SYSTEM PENCARI IKAN ===
 local function GetTargetFish()
     local Success, Result = pcall(function()
         local Root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -203,7 +190,9 @@ local function GetTargetFish()
         for _, sea in ipairs(FoldersToScan) do
             if sea and sea:IsA("Instance") then
                 for _, fish in ipairs(sea:GetChildren()) do
-                    if fish and fish.Parent and FishMap[fish.Name] then
+                    local IsFish = fish:GetAttribute("Weight") or fish:GetAttribute("CurHP") or string.find(fish.Name, "Fish")
+                    
+                    if fish and fish.Parent and IsFish then
                         
                         local IsPosOk, FishPos = pcall(function()
                             if fish:IsA("BasePart") then return fish.Position
