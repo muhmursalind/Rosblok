@@ -304,7 +304,7 @@ AutoTab:Dropdown({
 
 AutoTab:Dropdown({
     Title = "Area Selection",
-    Values = {"All", "Sea1", "Sea2", "Sea3", "Sea4", "Sea5"},
+    Values = {"All", "Sea1", "Sea2", "Sea3", "Sea4", "Sea5", "Sea6", "Sea7"},
     Default = "All",
     Callback = function(v) Config.SelectedSea = v; State.Target = nil end
 })
