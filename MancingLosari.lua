@@ -30,21 +30,37 @@ end
 local successLogic = FindStateTable()
 
 local FishTable = {
-    {name = "BlueFish", maxKg = 50, rarity = "Common"}, {name = "Boar Fish", maxKg = 50, rarity = "Common"},
-    {name = "Blackcap Basslet", maxKg = 100, rarity = "Common"}, {name = "Pumpkin Carved Shark", maxKg = 100, rarity = "Common"},
-    {name = "Hermit Crab", maxKg = 100.5, rarity = "Common"}, {name = "Goliath Tiger", maxKg = 100.5, rarity = "Common"},
-    {name = "Fangtooth", maxKg = 100.5, rarity = "Common"}, {name = "StreakyFish", maxKg = 100, rarity = "Uncommon"},
-    {name = "Dead Spooky Koi Fish", maxKg = 100, rarity = "Uncommon"}, {name = "Dead Scary Clownfish", maxKg = 100, rarity = "Uncommon"},
-    {name = "Jellyfish", maxKg = 100, rarity = "Uncommon"}, {name = "Lion Fish", maxKg = 150, rarity = "Rare"},
-    {name = "Luminous Fish", maxKg = 150, rarity = "Rare"}, {name = "Zombie Shark", maxKg = 150, rarity = "Rare"},
-    {name = "Wraithfin Abyssal", maxKg = 150, rarity = "Rare"}, {name = "Loving Shark", maxKg = 300, rarity = "Epic"},
-    {name = "Queen Crab", maxKg = 300, rarity = "Epic"}, {name = "Pink Dolphin", maxKg = 300, rarity = "Epic"},
-    {name = "Plasma Shark", maxKg = 450, rarity = "Legendary"}, {name = "Ancient Relic Crocodile", maxKg = 500, rarity = "Unknown"},
-    {name = "Colossal Squid", maxKg = 450, rarity = "Legendary"}, {name = "Ancient Whale", maxKg = 500, rarity = "Unknown"},
-    {name = "Monster Shark", maxKg = 500, rarity = "Unknown"}, {name = "Lava Megalodon", maxKg = 9999, rarity = "Unknown"},
-    {name = "Zombie Megalodon", maxKg = 900, rarity = "Unknown"}, {name = "Megalodon", maxKg = 9999, rarity = "Unknown"},
-    {name = "Kraken", maxKg = 850, rarity = "Unknown"}, {name = "Naga Keramat", maxKg = 850, rarity = "Unknown"}
+    { name = "BlueFish", minKg = 0.5, maxKg = 50, rarity = "Common" },
+    { name = "Boar Fish", minKg = 0.5, maxKg = 50, rarity = "Common" },
+    { name = "Blackcap Basslet", minKg = 0.5, maxKg = 100, rarity = "Common" },
+    { name = "Pumpkin Carved Shark", minKg = 0.5, maxKg = 100, rarity = "Common" },
+    { name = "Hermit Crab", minKg = 1, maxKg = 100.5, rarity = "Common" },
+    { name = "Goliath Tiger", minKg = 1, maxKg = 100.5, rarity = "Common" },
+    { name = "Fangtooth", minKg = 1, maxKg = 100.5, rarity = "Common" },
+    { name = "StreakyFish", minKg = 10, maxKg = 100, rarity = "Uncommon" },
+    { name = "Dead Spooky Koi Fish", minKg = 10, maxKg = 100, rarity = "Uncommon" },
+    { name = "Dead Scary Clownfish", minKg = 10, maxKg = 100, rarity = "Uncommon" },
+    { name = "Jellyfish", minKg = 40, maxKg = 100, rarity = "Uncommon" },
+    { name = "Lion Fish", minKg = 20, maxKg = 150, rarity = "Rare" },
+    { name = "Luminous Fish", minKg = 20, maxKg = 150, rarity = "Rare" },
+    { name = "Zombie Shark", minKg = 50, maxKg = 150, rarity = "Rare" },
+    { name = "Wraithfin Abyssal", minKg = 20, maxKg = 150, rarity = "Rare" },
+    { name = "Loving Shark", minKg = 10, maxKg = 300, rarity = "Epic" },
+    { name = "Queen Crab", minKg = 10, maxKg = 300, rarity = "Epic" },
+    { name = "Pink Dolphin", minKg = 8, maxKg = 300, rarity = "Epic" },
+    { name = "Plasma Shark", minKg = 300, maxKg = 450, rarity = "Legendary" },
+    { name = "Ancient Relic Crocodile", minKg = 100, maxKg = 500, rarity = "Unknown" },
+    { name = "Colossal Squid", minKg = 40, maxKg = 450, rarity = "Legendary" },
+    { name = "Ancient Whale", minKg = 400, maxKg = 500, rarity = "Unknown" },
+    { name = "Monster Shark", minKg = 400, maxKg = 500, rarity = "Unknown" },
+    { name = "Lava Megalodon", minKg = 1000, maxKg = 1000, rarity = "Unknown" },
+    { name = "Megalodon", minKg = 900, maxKg = 1000, rarity = "Unknown" },
+    { name = "Zombie Megalodon", minKg = 800, maxKg = 900, rarity = "Unknown" },
+    { name = "Kraken", minKg = 800, maxKg = 850, rarity = "Unknown" },
+    { name = "Naga Keramat", minKg = 1000, maxKg = 1000, rarity = "Unknown" },
+    { name = "RobotMegalodon", minKg = 800, maxKg = 1000, rarity = "Unknown" }
 }
+
 local FishLookup = {}
 local FishNameList = {}
 for _, fish in ipairs(FishTable) do FishLookup[fish.name] = fish; table.insert(FishNameList, fish.name) end
