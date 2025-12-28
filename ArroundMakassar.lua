@@ -10,10 +10,11 @@ local FishGiver = FishingSystem:WaitForChild("FishGiver", 5)
 local SellFish = FishingSystem:WaitForChild("SellFish", 5)
 local TransferRequest = FishingSystem:WaitForChild("TransferRequest", 5)
 
--- UI Variables (Agar bisa diakses fungsi refresh)
-local DropTradePlayer, DropTPPlayer
+-- UI Variables
+local DropTradePlayer
+local DropTPPlayer
 
--- Data Ikan
+-- [UPDATED] Data Ikan (Tanpa Probability)
 local FishTable = {
     {name = "Boar Fish", minKg = 0.5, maxKg = 50, rarity = "Common"},
     {name = "Blackcap Basslet", minKg = 0.5, maxKg = 45, rarity = "Common"},
@@ -22,21 +23,28 @@ local FishTable = {
     {name = "Hermit Crab", minKg = 0.8, maxKg = 40, rarity = "Common"},
     {name = "Goliath Tiger", minKg = 2, maxKg = 70, rarity = "Common"},
     {name = "Fangtooth", minKg = 1.5, maxKg = 55, rarity = "Common"},
-    {name = "Dead Spooky Koi Fish", minKg = 5, maxKg = 80, rarity = "Uncommon"},
+    {name = "Dead Spooky Koi Fish", minKg = 5, maxKg = 8, rarity = "Uncommon"},
     {name = "Poop", minKg = 5, maxKg = 80, rarity = "Uncommon"},
     {name = "Dead Scary Clownfish", minKg = 4, maxKg = 75, rarity = "Uncommon"},
     {name = "Jellyfish", minKg = 3, maxKg = 65, rarity = "Uncommon"},
+    {name = "Jellyfish Blue", minKg = 3, maxKg = 65, rarity = "Uncommon"},
+    {name = "Jellyfish Yellow", minKg = 3, maxKg = 65, rarity = "Uncommon"},
     {name = "Lion Fish", minKg = 10, maxKg = 120, rarity = "Rare"},
     {name = "Luminous Fish", minKg = 12, maxKg = 130, rarity = "Rare"},
-    {name = "Zombie Shark", minKg = 20, maxKg = 150, rarity = "Rare"},
+    {name = "Plankton", minKg = 20, maxKg = 150, rarity = "Rare"},
     {name = "Wraithfin Abyssal", minKg = 15, maxKg = 140, rarity = "Rare"},
-    {name = "Loving Shark", minKg = 30, maxKg = 250, rarity = "Epic"},
     {name = "Monster Shark", minKg = 35, maxKg = 280, rarity = "Epic"},
-    {name = "Queen Crab", minKg = 25, maxKg = 220, rarity = "Epic"},
+    {name = "StarFish", minKg = 25, maxKg = 220, rarity = "Epic"},
     {name = "Pink Dolphin", minKg = 40, maxKg = 300, rarity = "Epic"},
+    {name = "Loving Shark", minKg = 40, maxKg = 300, rarity = "Epic"},
+    {name = "Blue Dolphin", minKg = 40, maxKg = 300, rarity = "Epic"},
+    {name = "Yellow Dolphin", minKg = 40, maxKg = 300, rarity = "Epic"},
     {name = "Ghost Fish", minKg = 40, maxKg = 300, rarity = "Epic"},
+    {name = "purple Kraken", minKg = 40, maxKg = 300, rarity = "Epic"},
     {name = "Plasma Shark", minKg = 80, maxKg = 400, rarity = "Legendary"},
+    {name = "Raja Ubur", minKg = 80, maxKg = 400, rarity = "Legendary"},
     {name = "Ancient Relic Crocodile", minKg = 150, maxKg = 600, rarity = "Unknown"},
+    {name = "Naga", minKg = 150, maxKg = 600, rarity = "Unknown"},
     {name = "Mega Pink", minKg = 175, maxKg = 700, rarity = "Unknown"},
     {name = "Ancient Whale", minKg = 200, maxKg = 800, rarity = "Unknown"}
 }
@@ -72,8 +80,8 @@ end
 
 local function UpdateAllPlayerLists()
     local newList = GetPlayerList()
-    if DropTradePlayer then DropTradePlayer:SetValues(newList) end
-    if DropTPPlayer then DropTPPlayer:SetValues(newList) end
+    if DropTradePlayer then DropTradePlayer:Refresh(newList, true) end
+    if DropTPPlayer then DropTPPlayer:Refresh(newList, true) end
 end
 
 local function ActionSellAll()
@@ -141,7 +149,7 @@ end
 local Window = WindUI:CreateWindow({
     Title = "MDVKLuaX | MancingYuk",
     Author = "MDVKLuaX",
-    Folder = "MDVKMancingYukConfig",
+    Folder = "MDVKMancingYukV2",
     Size = UDim2.fromOffset(580, 480),
     Theme = "Dark",
     Transparent = true,
@@ -198,7 +206,6 @@ SectionGen:Toggle({
         task.spawn(function() while AutoGive do ActionGiveFish() task.wait(GiveDelay) end end)
     end
 })
--- TAMBAHAN: Tombol Give Fish Manual
 SectionGen:Button({
     Title = "Give Fish (Manual)", 
     Icon = "hand", 
@@ -234,7 +241,6 @@ SectionGift:Toggle({
     end
 })
 
--- TAMBAHAN: Tombol Trade/Gift Fish Manual
 SectionGift:Button({
     Title = "Gift Fish (Manual)", 
     Icon = "send", 
@@ -249,9 +255,12 @@ SectionGift:Button({
 })
 
 SectionGift:Button({
-    Title = "Manual Refresh Players", 
+    Title = "Refresh Player List", 
     Icon = "refresh-cw", 
-    Callback = function() UpdateAllPlayerLists() end
+    Callback = function() 
+        UpdateAllPlayerLists()
+        WindUI:Notify({Title="System", Content="Player list updated!"})
+    end
 })
 
 --- [TAB: TELEPORT] ---
@@ -276,11 +285,11 @@ SectionTP:Button({
 })
 
 SectionTP:Button({
-    Title = "Refresh List (A-Z)", 
+    Title = "Refresh List", 
     Icon = "refresh-ccw", 
     Callback = function()
         UpdateAllPlayerLists()
-        WindUI:Notify({Title="System", Content="Player list updated and sorted (A-Z)."})
+        WindUI:Notify({Title="System", Content="Player list updated!"})
     end
 })
 
@@ -299,8 +308,6 @@ SectionSell:Toggle({
         task.spawn(function() while AutoSell do ActionSellAll() task.wait(SellDelay) end end)
     end
 })
-
--- TAMBAHAN: Tombol Sell All Manual
 SectionSell:Button({
     Title = "Sell All Items", 
     Icon = "dollar-sign", 
@@ -310,21 +317,8 @@ SectionSell:Button({
     end
 })
 
------------------------------------------------------------
--- AUTO-UPDATE SYSTEM
------------------------------------------------------------
-
-Players.PlayerAdded:Connect(function()
-    task.wait(1)
-    UpdateAllPlayerLists()
-end)
-
-Players.PlayerRemoving:Connect(function()
-    UpdateAllPlayerLists()
-end)
-
 WindUI:Notify({
     Title = "MDVKLuaX",
-    Content = "System Fully Loaded with Manual Buttons!",
+    Content = "Fish Table Updated!",
     Duration = 5
 })
