@@ -14,7 +14,7 @@ local TransferRequest = FishingSystem:WaitForChild("TransferRequest", 5)
 local DropTradePlayer
 local DropTPPlayer
 
--- [UPDATED] Data Ikan (Tanpa Probability)
+-- [UPDATED] Data Ikan
 local FishTable = {
     {name = "Boar Fish", minKg = 0.5, maxKg = 50, rarity = "Common"},
     {name = "Blackcap Basslet", minKg = 0.5, maxKg = 45, rarity = "Common"},
@@ -46,7 +46,7 @@ local FishTable = {
     {name = "Ancient Relic Crocodile", minKg = 150, maxKg = 600, rarity = "Unknown"},
     {name = "Naga", minKg = 150, maxKg = 600, rarity = "Unknown"},
     {name = "Mega Pink", minKg = 175, maxKg = 700, rarity = "Unknown"},
-    {name = "Ancient Whale", minKg = 200, maxKg = 800, rarity = "Unknown"}
+    {name = "Ancient Whale", minKg = 200, maxKg = 999999999999999, rarity = "Unknown"}
 }
 
 -- Mapping Data Ikan
@@ -64,6 +64,10 @@ local AutoGive, GiveDelay, AutoSell, SellDelay = false, 0.1, false, 5.0
 local SelectedTradePlayer, SelectedTeleportPlayer = nil, nil
 local SelectedTradeFish = "All Fish"
 local AutoGiftEnabled, isCurrentlyGifting = false, false
+
+-- [NEW] Variables for Spam Nearby
+local SpamRadius = 20
+local AutoSpamNearby = false
 
 -----------------------------------------------------------
 -- CORE FUNCTIONS
@@ -116,30 +120,54 @@ local function ActionGiveFish()
     end
 end
 
-local function ActionGiftOne()
-    if isCurrentlyGifting or not SelectedTradePlayer then return end
-    local target = Players:FindFirstChild(SelectedTradePlayer)
+-- Helper: Kirim 1 ikan ke target spesifik
+local function SendFishToTarget(targetPlayer)
     local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not target or not backpack then return end
+    if not targetPlayer or not backpack then return false end
 
     for _, item in ipairs(backpack:GetChildren()) do
         local id = item:FindFirstChild("FishId")
         if id then
             local isMatch = (SelectedTradeFish == "All Fish") or string.find(SelectedTradeFish, item.Name)
             if isMatch then
-                isCurrentlyGifting = true
-                TransferRequest:FireServer(target, id.Value)
-                local timeout = 0
-                while item.Parent == backpack and timeout < 5 do
-                    task.wait(0.5)
-                    timeout = timeout + 0.5
-                end
-                isCurrentlyGifting = false
-                return true
+                TransferRequest:FireServer(targetPlayer, id.Value)
+                return true -- Mengembalikan true jika berhasil mengirim 1 ikan
             end
         end
     end
     return false
+end
+
+-- [UPDATED] ActionGiftOne (Single Target)
+local function ActionGiftOne()
+    if isCurrentlyGifting or not SelectedTradePlayer then return end
+    local target = Players:FindFirstChild(SelectedTradePlayer)
+    if not target then return end
+
+    isCurrentlyGifting = true
+    SendFishToTarget(target)
+    task.wait(0.5) -- Debounce
+    isCurrentlyGifting = false
+end
+
+-- [NEW] Function Spam Nearby
+local function ActionSpamNearbyPlayers()
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (myRoot.Position - p.Character.HumanoidRootPart.Position).Magnitude
+            if dist <= SpamRadius then
+                -- Kirim ikan ke player ini jika dalam radius
+                local sent = SendFishToTarget(p)
+                if sent then
+                    -- Delay kecil agar server tidak overload request
+                    task.wait(0.1) 
+                end
+            end
+        end
+    end
 end
 
 -----------------------------------------------------------
@@ -147,10 +175,10 @@ end
 -----------------------------------------------------------
 
 local Window = WindUI:CreateWindow({
-    Title = "MDVKLuaX | MancingYuk",
+    Title = "MDVKLuaX | MancingYuk V2",
     Author = "MDVKLuaX",
     Folder = "MDVKMancingYukV2",
-    Size = UDim2.fromOffset(580, 480),
+    Size = UDim2.fromOffset(580, 500), -- Sedikit diperbesar
     Theme = "Dark",
     Transparent = true,
     SideBarWidth = 170,
@@ -216,7 +244,7 @@ SectionGen:Button({
 })
 
 --- [TAB: TRADE / GIFT] ---
-local SectionGift = Tabs.Trade:Section({ Title = "Trading", Opened = true })
+local SectionGift = Tabs.Trade:Section({ Title = "Trading Target", Opened = true })
 
 DropTradePlayer = SectionGift:Dropdown({
     Title = "Target Player", 
@@ -234,7 +262,7 @@ SectionGift:Dropdown({
 })
 
 SectionGift:Toggle({
-    Title = "Auto Gift Fish",
+    Title = "Auto Gift (Target Only)",
     Callback = function(state)
         AutoGiftEnabled = state
         task.spawn(function() while AutoGiftEnabled do ActionGiftOne() task.wait(0.5) end end)
@@ -245,12 +273,43 @@ SectionGift:Button({
     Title = "Gift Fish (Manual)", 
     Icon = "send", 
     Callback = function() 
-        local success = ActionGiftOne()
-        if success then
-            WindUI:Notify({Title="Trade", Content="Sent fish to "..tostring(SelectedTradePlayer)})
+        local target = Players:FindFirstChild(SelectedTradePlayer)
+        if target then
+            local success = SendFishToTarget(target)
+            if success then
+                WindUI:Notify({Title="Trade", Content="Sent fish to "..tostring(SelectedTradePlayer)})
+            else
+                WindUI:Notify({Title="Error", Content="No matching fish found!"})
+            end
         else
-            WindUI:Notify({Title="Error", Content="Failed to gift fish. Check player target or filter!"})
+            WindUI:Notify({Title="Error", Content="Select a player first!"})
         end
+    end
+})
+
+-- [NEW SECTION: SPAM NEARBY]
+local SectionSpam = Tabs.Trade:Section({ Title = "Spam Nearby", Opened = true })
+
+SectionSpam:Slider({
+    Title = "Spam Radius (Studs)",
+    Value = {Min = 5, Max = 100, Default = 20},
+    Step = 1,
+    Callback = function(v) SpamRadius = v end
+})
+
+SectionSpam:Toggle({
+    Title = "Auto Spam Nearby",
+    Callback = function(state)
+        AutoSpamNearby = state
+        if state then
+            WindUI:Notify({Title="System", Content="Spamming trades to nearby players..."})
+        end
+        task.spawn(function() 
+            while AutoSpamNearby do 
+                ActionSpamNearbyPlayers() 
+                task.wait(0.5) -- Loop delay
+            end 
+        end)
     end
 })
 
@@ -258,7 +317,7 @@ SectionGift:Button({
     Title = "Refresh Player List", 
     Icon = "refresh-cw", 
     Callback = function() 
-        UpdateAllPlayerLists()
+        UpdateAllPlayerLists() 
         WindUI:Notify({Title="System", Content="Player list updated!"})
     end
 })
@@ -288,7 +347,7 @@ SectionTP:Button({
     Title = "Refresh List", 
     Icon = "refresh-ccw", 
     Callback = function()
-        UpdateAllPlayerLists()
+        UpdateAllPlayerLists() 
         WindUI:Notify({Title="System", Content="Player list updated!"})
     end
 })
@@ -312,13 +371,13 @@ SectionSell:Button({
     Title = "Sell All Items", 
     Icon = "dollar-sign", 
     Callback = function() 
-        local count = ActionSellAll()
+        local count = ActionSellAll() 
         WindUI:Notify({Title="Economy", Content="Sold "..tostring(count).." items!"})
     end
 })
 
 WindUI:Notify({
     Title = "MDVKLuaX",
-    Content = "Fish Table Updated!",
+    Content = "Features Updated: Nearby Spam Added!",
     Duration = 5
 })
