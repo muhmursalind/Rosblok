@@ -41,6 +41,8 @@ local FishTable = {
     {name = "Yellow Dolphin", minKg = 40, maxKg = 300, rarity = "Epic"},
     {name = "Ghost Fish", minKg = 40, maxKg = 300, rarity = "Epic"},
     {name = "purple Kraken", minKg = 40, maxKg = 300, rarity = "Epic"},
+    {name = "Octopus White", minKg = 80, maxKg = 400, rarity = "Legendary"},
+    {name = "Octopus Pink", minKg = 80, maxKg = 400, rarity = "Legendary"},
     {name = "Plasma Shark", minKg = 80, maxKg = 400, rarity = "Legendary"},
     {name = "Raja Ubur", minKg = 80, maxKg = 400, rarity = "Legendary"},
     {name = "Ancient Relic Crocodile", minKg = 150, maxKg = 600, rarity = "Unknown"},
