@@ -9,16 +9,22 @@ local FishRemote = FishingSystem:WaitForChild("FishGiver")
 local PublishRemote = FishingSystem:WaitForChild("PublishFishCatch")
 local SellRemote = FishingSystem:WaitForChild("SellFish")
 
+local PlayerDataRemotes = ReplicatedStorage:WaitForChild("ReplicAssets"):WaitForChild("AssetsRemotes"):WaitForChild("PlayerDataRemotes")
+local TransferRemote = PlayerDataRemotes:WaitForChild("TransferMoneyFunction")
+
 local SelectedFishData = nil
 local SelectedWeightMode = "Random Kg"
 local AutoGive = false
 local GiveDelay = 0.5
-
 local AutoSellAll = false
 local SellAllDelay = 2
 local AutoSellRarity = false
 local SellRarityDelay = 2
 local SelectedSellRarity = nil
+
+local SelectedTargetPlayer = nil
+local SelectedAmount = "100000000000000"
+local TransferDelay = 5
 
 local FishTable = {
     { name = "Boar Fish", minKg = 0.5, maxKg = 50, rarity = "Common" },
@@ -56,30 +62,24 @@ local FishTable = {
     { name = "Deep Fish", minKg = 0.5, maxKg = 50, rarity = "Common" },
     { name = "Green Fish", minKg = 0.5, maxKg = 50, rarity = "Common" },
     { name = "ArapaimaFish", minKg = 0.5, maxKg = 50, rarity = "Common" },
-    
     { name = "Dead Spooky Koi Fish", minKg = 5, maxKg = 80, rarity = "Uncommon" },
     { name = "Dead Scary Clownfish", minKg = 4, maxKg = 75, rarity = "Uncommon" },
-    
     { name = "Lion Fish", minKg = 10, maxKg = 120, rarity = "Rare" },
     { name = "Luminous Fish", minKg = 12, maxKg = 130, rarity = "Rare" },
     { name = "Wraithfin Abyssal", minKg = 15, maxKg = 140, rarity = "Rare" },
     { name = "Ghost Ray", minKg = 15, maxKg = 140, rarity = "Rare" },
     { name = "purple Kraken", minKg = 15, maxKg = 140, rarity = "Rare" },
     { name = "Ghost Fish", minKg = 15, maxKg = 140, rarity = "Rare" },
-    
     { name = "Morning Star", minKg = 0.5, maxKg = 50, rarity = "Epic" },
     { name = "Goliath Tiger", minKg = 2, maxKg = 70, rarity = "Epic" },
     { name = "Jellyfish", minKg = 3, maxKg = 65, rarity = "Epic" },
-    
     { name = "Loving Shark", minKg = 250, maxKg = 500, rarity = "Legendary" },
     { name = "Pumpkin Carved Shark", minKg = 350, maxKg = 550, rarity = "Legendary" },
     { name = "Pink Dolphin", minKg = 190, maxKg = 500, rarity = "Legendary" },
     { name = "Crimsom Ray", minKg = 80, maxKg = 400, rarity = "Legendary" },
-    
     { name = "Plasma Shark", minKg = 80, maxKg = 400, rarity = "Mitos" },
     { name = "Ancient Relic Crocodile", minKg = 150, maxKg = 600, rarity = "Mitos" },
     { name = "Light Dolphin", minKg = 15, maxKg = 140, rarity = "Mitos" },
-    
     { name = "Ancient Whale", minKg = 2011, maxKg = 2900, rarity = "Secret" },
     { name = "Kraken", minKg = 1653, maxKg = 3211, rarity = "Secret" },
     { name = "Sotong", minKg = 200, maxKg = 800, rarity = "Secret" },
@@ -98,12 +98,7 @@ local FishTable = {
 
 local DropdownList = {}
 local FishMap = {}
-
-local RarityOrder = {
-    ["Common"] = 1, ["Uncommon"] = 2, ["Rare"] = 3,
-    ["Epic"] = 4, ["Legendary"] = 5, ["Mitos"] = 6, ["Secret"] = 7
-}
-
+local RarityOrder = { ["Common"] = 1, ["Uncommon"] = 2, ["Rare"] = 3, ["Epic"] = 4, ["Legendary"] = 5, ["Mitos"] = 6, ["Secret"] = 7 }
 local SellRarityList = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mitos", "Secret"}
 
 table.sort(FishTable, function(a, b)
@@ -118,85 +113,42 @@ for _, fish in ipairs(FishTable) do
     FishMap[formattedName] = fish
 end
 
-local function GiveFish()
-    if not SelectedFishData then 
-        WindUI:Notify({ Title = "Error", Content = "Please select a fish first!", Icon = "solar:danger-circle-bold", Duration = 3 })
-        return 
+local function GetPlayerDisplayNames()
+    local tbl = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(tbl, p.DisplayName .. " (@" .. p.Name .. ")")
+        end
     end
+    return tbl
+end
 
+local function GiveFish()
+    if not SelectedFishData then return end
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
-        local finalWeight = 0
-        if SelectedWeightMode == "Min Kg" then
-            finalWeight = SelectedFishData.minKg
-        elseif SelectedWeightMode == "Max Kg" then
-            finalWeight = SelectedFishData.maxKg
-        else
-            finalWeight = SelectedFishData.minKg + math.random() * (SelectedFishData.maxKg - SelectedFishData.minKg)
-        end
-
+        local finalWeight = (SelectedWeightMode == "Min Kg" and SelectedFishData.minKg) or (SelectedWeightMode == "Max Kg" and SelectedFishData.maxKg) or (SelectedFishData.minKg + math.random() * (SelectedFishData.maxKg - SelectedFishData.minKg))
         local hookPos = char.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5).Position
-        
-        local args = {{
-            hookPosition = hookPos,
-            name = SelectedFishData.name,
-            rarity = SelectedFishData.rarity,
-            weight = finalWeight
-        }}
-        
-        FishRemote:FireServer(unpack(args))
+        FishRemote:FireServer({ hookPosition = hookPos, name = SelectedFishData.name, rarity = SelectedFishData.rarity, weight = finalWeight })
         return finalWeight
     end
 end
 
 local function GiveAndPublishFish()
-    if not SelectedFishData then 
-        WindUI:Notify({ Title = "Error", Content = "Please select a fish first!", Icon = "solar:danger-circle-bold", Duration = 3 })
-        return 
-    end
-
+    if not SelectedFishData then return end
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
-        local finalWeight = 0
-        if SelectedWeightMode == "Min Kg" then
-            finalWeight = SelectedFishData.minKg
-        elseif SelectedWeightMode == "Max Kg" then
-            finalWeight = SelectedFishData.maxKg
-        else
-            finalWeight = SelectedFishData.minKg + math.random() * (SelectedFishData.maxKg - SelectedFishData.minKg)
-        end
-
+        local finalWeight = (SelectedWeightMode == "Min Kg" and SelectedFishData.minKg) or (SelectedWeightMode == "Max Kg" and SelectedFishData.maxKg) or (SelectedFishData.minKg + math.random() * (SelectedFishData.maxKg - SelectedFishData.minKg))
         local hookPos = char.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5).Position
-        local args = {{ hookPosition = hookPos, name = SelectedFishData.name, rarity = SelectedFishData.rarity, weight = finalWeight }}
-        
-        FishRemote:FireServer(unpack(args))
+        FishRemote:FireServer({ hookPosition = hookPos, name = SelectedFishData.name, rarity = SelectedFishData.rarity, weight = finalWeight })
         PublishRemote:FireServer(SelectedFishData.name, finalWeight, SelectedFishData.rarity)
         return finalWeight
     end
 end
 
-local function SellAllFish()
-    SellRemote:FireServer("SellAll")
-    WindUI:Notify({ Title = "Sold", Content = "Sold ALL fish in inventory!", Icon = "solar:wallet-money-bold", Duration = 2 })
-end
-
-local function SellFishByRarity()
-    if not SelectedSellRarity then
-        WindUI:Notify({ Title = "Error", Content = "Select a rarity to sell first!", Icon = "solar:danger-circle-bold", Duration = 3 })
-        return
-    end
-    
-    local args = {
-        "SellByRarity",
-        { rarity = SelectedSellRarity }
-    }
-    SellRemote:FireServer(unpack(args))
-    WindUI:Notify({ Title = "Sold", Content = "Sold all " .. SelectedSellRarity .. " fish!", Icon = "solar:wallet-money-bold", Duration = 2 })
-end
-
 local Window = WindUI:CreateWindow({
-    Title = "Fishing Hub | WindUI",
-    Folder = "FishingConfig",
+    Title = "Sunda Voice | MDVK",
+    Folder = "SundaVoiceConfig",
     Icon = "solar:fish-bold-duotone",
     NewElements = true,
     
@@ -211,51 +163,16 @@ local Window = WindUI:CreateWindow({
 
 local MainTab = Window:Tab({ Title = "Main", Icon = "solar:home-smile-bold", Border = true })
 local SellingTab = Window:Tab({ Title = "Selling", Icon = "solar:wallet-money-bold", Border = true })
+local EconomyTab = Window:Tab({ Title = "Economy", Icon = "solar:bank-note-bold", Border = true })
 
 local FishSection = MainTab:Section({ Title = "Instant Fish (Exploit)" })
 
-FishSection:Dropdown({
-    Title = "Select Fish",
-    Desc = "Sorted by Rarity (Common -> Secret)",
-    Flag = "SelectedFishDropdown", 
-    Values = DropdownList,
-    Value = nil,
-    Callback = function(val)
-        SelectedFishData = FishMap[val]
-    end
-})
-
-FishSection:Dropdown({
-    Title = "Weight Mode",
-    Desc = "Choose weight calculation",
-    Flag = "WeightModeDropdown",
-    Values = { "Random Kg", "Min Kg", "Max Kg" },
-    Value = "Random Kg",
-    Callback = function(val)
-        SelectedWeightMode = val
-    end
-})
-
-FishSection:Slider({
-    Title = "Auto Give Delay",
-    Flag = "DelaySlider",
-    Step = 0.1,
-    Value = {
-        Min = 0.1,
-        Max = 5,
-        Default = 0.5,
-    },
-    Callback = function(val)
-        GiveDelay = val
-    end
-})
-
-FishSection:Space()
+FishSection:Dropdown({ Title = "Select Fish", Values = DropdownList, Callback = function(val) SelectedFishData = FishMap[val] end })
+FishSection:Dropdown({ Title = "Weight Mode", Values = { "Random Kg", "Min Kg", "Max Kg" }, Value = "Random Kg", Callback = function(val) SelectedWeightMode = val end })
+FishSection:Slider({ Title = "Auto Give Delay", Step = 0.1, Value = { Min = 0.1, Max = 5, Default = 0.5 }, Callback = function(val) GiveDelay = val end })
 
 FishSection:Button({
     Title = "Give Fish (Silent)",
-    Desc = "Only gives item (No notification)",
-    Icon = "solar:gift-bold",
     Callback = function()
         local w = GiveFish()
         if w then WindUI:Notify({ Title = "Success", Content = "Caught: " .. SelectedFishData.name, Icon = "check", Duration = 2 }) end
@@ -264,8 +181,6 @@ FishSection:Button({
 
 FishSection:Button({
     Title = "Give & Publish (Flex)",
-    Desc = "Gives item + Server Global Notification",
-    Icon = "solar:megaphone-bold",
     Callback = function()
         local w = GiveAndPublishFish()
         if w then WindUI:Notify({ Title = "Published!", Content = "Broadcasted: " .. SelectedFishData.name, Icon = "solar:bell-bold", Duration = 3 }) end
@@ -274,17 +189,13 @@ FishSection:Button({
 
 FishSection:Toggle({
     Title = "Auto Give Fish (Silent)",
-    Desc = "Automatically gives fish with delay",
-    Flag = "AutoFishToggle",
     Value = false,
     Callback = function(val)
         AutoGive = val
         if val then
             task.spawn(function()
                 while AutoGive do
-                    if SelectedFishData then
-                        GiveFish()
-                    end
+                    if SelectedFishData then GiveFish() end
                     task.wait(GiveDelay)
                 end
             end)
@@ -293,17 +204,9 @@ FishSection:Toggle({
 })
 
 local SellAllSection = SellingTab:Section({ Title = "Sell Everything" })
-
-SellAllSection:Button({
-    Title = "Sell All Fish",
-    Desc = "Sells everything in your bag",
-    Icon = "solar:dollar-minimalistic-bold",
-    Callback = SellAllFish
-})
-
+SellAllSection:Button({ Title = "Sell All Fish", Callback = function() SellRemote:FireServer("SellAll") end })
 SellAllSection:Toggle({
     Title = "Auto Sell All",
-    Flag = "AutoSellAllToggle",
     Value = false,
     Callback = function(val)
         AutoSellAll = val
@@ -317,84 +220,98 @@ SellAllSection:Toggle({
         end
     end
 })
-
-SellAllSection:Slider({
-    Title = "Sell All Delay",
-    Flag = "SellAllDelay",
-    Step = 1,
-    Value = {
-        Min = 1,
-        Max = 60,
-        Default = 10,
-    },
-    Callback = function(val)
-        SellAllDelay = val
-    end
-})
+SellAllSection:Slider({ Title = "Sell All Delay", Step = 1, Value = { Min = 1, Max = 60, Default = 10 }, Callback = function(val) SellAllDelay = val end })
 
 local SellRaritySection = SellingTab:Section({ Title = "Sell Specific Rarity" })
+SellRaritySection:Dropdown({ Title = "Select Rarity to Sell", Values = SellRarityList, Callback = function(val) SelectedSellRarity = val end })
+SellRaritySection:Button({ Title = "Sell Selected Rarity", Callback = function() if SelectedSellRarity then SellRemote:FireServer("SellByRarity", { rarity = SelectedSellRarity }) end end })
 
-SellRaritySection:Dropdown({
-    Title = "Select Rarity to Sell",
-    Flag = "SellRarityDropdown",
-    Values = SellRarityList,
+local EconomySection = EconomyTab:Section({ Title = "Mass Transfer Artos" })
+
+local PlayerDropdownUI = EconomySection:Dropdown({
+    Title = "Select Player",
+    Values = GetPlayerDisplayNames(),
     Callback = function(val)
-        SelectedSellRarity = val
+        local username = val:match("@([%w_]+)")
+        SelectedTargetPlayer = Players:FindFirstChild(username)
     end
 })
 
-SellRaritySection:Button({
-    Title = "Sell Selected Rarity",
-    Icon = "solar:tag-price-bold",
-    Callback = SellFishByRarity
+EconomySection:Button({
+    Title = "Refresh Player List",
+    Icon = "solar:refresh-bold",
+    Callback = function()
+        PlayerDropdownUI:Refresh(GetPlayerDisplayNames())
+        WindUI:Notify({ Title = "System", Content = "Player list updated!", Duration = 2 })
+    end
 })
 
-SellRaritySection:Toggle({
-    Title = "Auto Sell Rarity",
-    Flag = "AutoSellRarityToggle",
-    Value = false,
-    Callback = function(val)
-        AutoSellRarity = val
-        if val then
+EconomySection:Dropdown({
+    Title = "Select Amount",
+    Values = {"100000000", "500000000", "1000000000", "1000000000000", "100000000000000"},
+    Value = "100000000000000",
+    Callback = function(val) SelectedAmount = val end
+})
+
+EconomySection:Slider({
+    Title = "Transfer Delay (Give All)",
+    Desc = "Naikkan jika transfer tidak masuk ke semua orang",
+    Step = 1,
+    Value = { Min = 3, Max = 10, Default = 5 },
+    Callback = function(val) TransferDelay = val end
+})
+
+EconomySection:Button({
+    Title = "Give Selected Player",
+    Icon = "solar:user-bold",
+    Callback = function()
+        if SelectedTargetPlayer then
             task.spawn(function()
-                while AutoSellRarity do
-                    if SelectedSellRarity then
-                        local args = {
-                            "SellByRarity",
-                            { rarity = SelectedSellRarity }
-                        }
-                        SellRemote:FireServer(unpack(args))
-                    end
-                    task.wait(SellRarityDelay)
+                local success, result = pcall(function() 
+                    return TransferRemote:InvokeServer(SelectedTargetPlayer.UserId, SelectedAmount) 
+                end)
+                if success then
+                    WindUI:Notify({ Title = "Success", Content = "Uang dikirim ke " .. SelectedTargetPlayer.Name, Duration = 2 })
+                else
+                    WindUI:Notify({ Title = "Error", Content = "Gagal mengirim uang!", Duration = 2 })
                 end
             end)
+        else
+            WindUI:Notify({ Title = "Error", Content = "Pilih player terlebih dahulu!", Duration = 2 })
         end
     end
 })
 
-SellRaritySection:Slider({
-    Title = "Sell Rarity Delay",
-    Flag = "SellRarityDelay",
-    Step = 1,
-    Value = {
-        Min = 1,
-        Max = 60,
-        Default = 10,
-    },
-    Callback = function(val)
-        SellRarityDelay = val
+EconomySection:Button({
+    Title = "Give All Players",
+    Icon = "solar:users-group-two-rounded-bold",
+    Callback = function()
+        local allPlayers = Players:GetPlayers()
+        local count = 0
+        
+        WindUI:Notify({ Title = "Economy", Content = "Memulai Mass Transfer...", Duration = 2 })
+        
+        task.spawn(function()
+            for _, target in ipairs(allPlayers) do
+                if target ~= LocalPlayer and target.Parent then
+                    count = count + 1
+                    pcall(function() 
+                        TransferRemote:InvokeServer(target.UserId, SelectedAmount) 
+                    end)
+                    
+                    task.wait(TransferDelay)
+                end
+            end
+            WindUI:Notify({ Title = "Done", Content = "Selesai! Berhasil mengirim ke " .. tostring(count) .. " player.", Duration = 3 })
+        end)
     end
 })
 
 local MiscSection = MainTab:Section({ Title = "Settings" })
 MiscSection:Keybind({
     Title = "Toggle Menu Key",
-    Desc = "Key to open/close menu",
-    Flag = "UIKeybind",
     Value = "RightControl",
-    Callback = function(key)
-        Window:SetToggleKey(Enum.KeyCode[key])
-    end
+    Callback = function(key) Window:SetToggleKey(Enum.KeyCode[key]) end
 })
 
 Window.ConfigManager:Load("default")
