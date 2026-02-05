@@ -58,7 +58,9 @@ local FishTable = {
     { name = "Zombie Megalodon", minKg = 800, maxKg = 900, rarity = "Unknown" },
     { name = "Kraken", minKg = 800, maxKg = 850, rarity = "Unknown" },
     { name = "Naga Keramat", minKg = 1000, maxKg = 1000, rarity = "Unknown" },
-    { name = "RobotMegalodon", minKg = 800, maxKg = 1000, rarity = "Unknown" }
+    { name = "RobotMegalodon", minKg = 800, maxKg = 1000, rarity = "Unknown" },
+    { name = "Frostclaw Crab", minKg = 700, maxKg = 1000, rarity = "Unknown" },
+    { name = "Deep Sea Sentinel", minKg = 700, maxKg = 1000, rarity = "Unknown" },
 }
 
 local FishLookup = {}
