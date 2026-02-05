@@ -3,31 +3,13 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
 
 local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem", 10)
 local FishGiver = FishingSystem and FishingSystem:WaitForChild("FishGiver", 5)
 local SellFish = FishingSystem and FishingSystem:WaitForChild("SellFish", 5)
 local DropMoney = ReplicatedStorage:WaitForChild("DropMoney", 10)
-
-
-local StateTable = nil
-local function FindStateTable()
-    for _, v in pairs(getgc(true)) do
-        if type(v) == "table" then
-            if rawget(v, "casted") ~= nil and rawget(v, "fishingCaught") ~= nil and rawget(v, "cooldownTime") then
-                StateTable = v
-                return true
-            end
-        end
-    end
-    return false
-end
-local successLogic = FindStateTable()
 
 local FishTable = {
     { name = "BlueFish", minKg = 0.5, maxKg = 50, rarity = "Common" },
@@ -74,10 +56,6 @@ for i = 1, 10 do local label = tostring(i) .. " Juta"; MoneyAmountList[i] = labe
 local Character, HumanoidRootPart, Humanoid
 local SelectedPlayerName = nil
 
-local AutoCastEnabled = false
-local CastChargeTime = 0.9
-local ReelClickDelay = 0.05
-
 local AutoFishGiver = false
 local AutoSellFish = false
 local AutoDropMoney = false
@@ -101,21 +79,6 @@ UpdateCharacterCache()
 
 local function GetPlayerPosition()
     return HumanoidRootPart and HumanoidRootPart.Position or Vector3.new(0, 0, 0)
-end
-
-local function SmartClick(action, holdTime)
-    local CenterX = Camera.ViewportSize.X / 2
-    local CenterY = Camera.ViewportSize.Y / 2
-
-    if action == "Hold" then
-        VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 1)
-        task.wait(holdTime)
-        VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 1)
-    elseif action == "Click" then
-        VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 1)
-        task.wait(0.02)
-        VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 1)
-    end
 end
 
 local function GiveFish(fish)
@@ -235,41 +198,10 @@ local Window = WindUI:CreateWindow({
 })
 
 local Tabs = {
-    AutoFish = Window:Tab({ Title = "Auto Fish", Icon = "anchor" }),
     Exploits = Window:Tab({ Title = "Exploits", Icon = "sparkles" }),
     Money = Window:Tab({ Title = "Money/Sell", Icon = "wallet" }),
     Player = Window:Tab({ Title = "Player", Icon = "user" }),
 }
-
-local MechSection = Tabs.AutoFish:Section({ Title = "Auto Cast & Reel", Opened = true })
-
-local StatusParagraph = MechSection:Paragraph({ Title = "Game Logic Status", Desc = successLogic and "Connected" or "Scanning...", Icon = successLogic and "check" or "loader" })
-if not successLogic then
-    task.spawn(function()
-        while not StateTable do FindStateTable(); task.wait(1) end
-        StatusParagraph:SetTitle("Game Logic Status: Connected")
-        StatusParagraph:SetIcon("check")
-    end)
-end
-
-MechSection:Toggle({
-    Title = "Enable Auto Fish Bot",
-    Desc = "Mancing otomatis (Wajib Pegang Joran dan berada di air)",
-    Value = false,
-    Callback = function(state) AutoCastEnabled = state; if state and not StateTable then FindStateTable() end end
-})
-
-Tabs.AutoFish:Section({ Title = "Bot Timing" })
-
-Tabs.AutoFish:Slider({
-    Title = "Cast Power (Charge Time)", Desc = "Lama tahan klik untuk melempar (0.9 = Power Tinggi)",
-    Value = { Min = 0.1, Max = 1.5, Default = 0.9 }, Step = 0.1, Callback = function(v) CastChargeTime = v end
-})
-
-Tabs.AutoFish:Slider({
-    Title = "Reel Speed (Click Delay)", Desc = "Jeda klik saat menarik ikan (0.01 = Cepat)",
-    Value = { Min = 0.01, Max = 0.5, Default = 0.05 }, Step = 0.01, Callback = function(v) ReelClickDelay = v end
-})
 
 Tabs.Exploits:Section({ Title = "Instant Fish Giver" })
 
@@ -382,34 +314,6 @@ Tabs.Player:Button({
         WindUI:Notify({ Title = "Character", Content = "Respawning...", Duration = 2 })
     end
 })
-
-task.spawn(function()
-    while true do
-        task.wait()
-        
-        if AutoCastEnabled and StateTable then
-            local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
-            
-            if tool and tool:FindFirstChild("Part") then
-                if not StateTable.casted and not StateTable.fishingInProgress and not StateTable.castingCooldown and StateTable.canCast then
-                    task.wait(0.5)
-                    SmartClick("Hold", CastChargeTime)
-                    task.wait(1)
-                
-                elseif StateTable.fishingInProgress and StateTable.casted then
-                    SmartClick("Click")
-                    task.wait(ReelClickDelay > 0 and ReelClickDelay or 0.05) 
-
-                elseif StateTable.fishingCaught then
-                    SmartClick("Click")
-                    task.wait(0.5) 
-                end
-            end
-        else
-            task.wait(0.5)
-        end
-    end
-end)
 
 game:GetService("CoreGui").DescendantRemoving:Connect(function(obj)
     if obj.Name == "WindUI" then
