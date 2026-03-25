@@ -6,12 +6,15 @@ local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 
-local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem", 10)
-local FishGiver = FishingSystem and FishingSystem:WaitForChild("FishGiver", 5)
-local SellFish = FishingSystem and FishingSystem:WaitForChild("SellFish", 5)
-local DropMoney = ReplicatedStorage:WaitForChild("DropMoney", 10)
+
+local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem")
+local Events = FishingSystem:WaitForChild("FishingSystemEvents")
+local FishGiver = Events:WaitForChild("FishGiver")
+local SellFish = Events:WaitForChild("SellFish")
+local DropMoney = ReplicatedStorage:WaitForChild("DropMoney")
 
 local FishTable = {
+    { name = "Ketupat", minKg = 0.5, maxKg = 100, rarity = "Uncommon" },
     { name = "BlueFish", minKg = 0.5, maxKg = 50, rarity = "Common" },
     { name = "Boar Fish", minKg = 0.5, maxKg = 50, rarity = "Common" },
     { name = "Blackcap Basslet", minKg = 0.5, maxKg = 100, rarity = "Common" },
@@ -29,20 +32,28 @@ local FishTable = {
     { name = "Wraithfin Abyssal", minKg = 20, maxKg = 150, rarity = "Rare" },
     { name = "Loving Shark", minKg = 10, maxKg = 300, rarity = "Epic" },
     { name = "Queen Crab", minKg = 10, maxKg = 300, rarity = "Epic" },
-    { name = "Pink Dolphin", minKg = 8, maxKg = 300, rarity = "Epic" },
+    { name = "Pink Dolphin", minKg = 8, maxKg = 300, rarity = "Legendary" },
     { name = "Plasma Shark", minKg = 300, maxKg = 450, rarity = "Legendary" },
     { name = "Ancient Relic Crocodile", minKg = 100, maxKg = 500, rarity = "Unknown" },
     { name = "Colossal Squid", minKg = 40, maxKg = 450, rarity = "Legendary" },
     { name = "Ancient Whale", minKg = 400, maxKg = 500, rarity = "Unknown" },
     { name = "Monster Shark", minKg = 400, maxKg = 500, rarity = "Unknown" },
-    { name = "Lava Megalodon", minKg = 1000, maxKg = 1000, rarity = "Unknown" },
+    { name = "Lava Megalodon", minKg = 700, maxKg = 1000, rarity = "Unknown" },
     { name = "Megalodon", minKg = 900, maxKg = 1000, rarity = "Unknown" },
     { name = "Zombie Megalodon", minKg = 800, maxKg = 900, rarity = "Unknown" },
     { name = "Kraken", minKg = 800, maxKg = 850, rarity = "Unknown" },
     { name = "Naga Keramat", minKg = 1000, maxKg = 1000, rarity = "Unknown" },
-    { name = "RobotMegalodon", minKg = 800, maxKg = 1000, rarity = "Unknown" },
+    { name = "RobotMegalodon", minKg = 700, maxKg = 1000, rarity = "Unknown" },
     { name = "Frostclaw Crab", minKg = 700, maxKg = 1000, rarity = "Unknown" },
     { name = "Deep Sea Sentinel", minKg = 700, maxKg = 1000, rarity = "Unknown" },
+    { name = "Chainpike Shark", minKg = 200, maxKg = 1000, rarity = "Unknown" },
+    { name = "Elektro Piranha", minKg = 200, maxKg = 1000, rarity = "Unknown" },
+    { name = "Frosbite Predator", minKg = 200, maxKg = 1000, rarity = "Unknown" },
+    { name = "Magma Shark", minKg = 200, maxKg = 1000, rarity = "Unknown" },
+    { name = "Magma Shark Pink", minKg = 200, maxKg = 1000, rarity = "Unknown" },
+    { name = "Piranha", minKg = 200, maxKg = 1000, rarity = "Unknown" },
+    { name = "Night Fury", minKg = 700, maxKg = 1000, rarity = "Unknown" },
+    { name = "Baby Night Fury", minKg = 700, maxKg = 1000, rarity = "Unknown" },
 }
 
 local FishLookup = {}
@@ -65,6 +76,9 @@ local SellDelayAmount = 5
 local SelectedDropAmount = 1000000
 local MinDropDelay, MaxDropDelay = 5, 10
 
+-- Weight Mode: "max", "min", "random"
+local WeightMode = "max"
+
 local GiverConnection, SellConnection, DropMoneyThread
 
 local function UpdateCharacterCache()
@@ -81,16 +95,29 @@ local function GetPlayerPosition()
     return HumanoidRootPart and HumanoidRootPart.Position or Vector3.new(0, 0, 0)
 end
 
+local function GetFishWeight(fish)
+    if WeightMode == "max" then
+        return fish.maxKg
+    elseif WeightMode == "min" then
+        return fish.minKg
+    else -- random
+        -- math.random hanya integer, gunakan lerp manual untuk float
+        local t = math.random() -- 0.0 ~ 1.0
+        return fish.minKg + (fish.maxKg - fish.minKg) * t
+    end
+end
+
 local function GiveFish(fish)
     if not FishGiver then return false end
     local hookPosition = GetPlayerPosition()
+    local weight = GetFishWeight(fish)
     return pcall(function()
-        FishGiver:FireServer({hookPosition = hookPosition, rarity = fish.rarity, name = fish.name, weight = fish.maxKg})
+        FishGiver:FireServer({hookPosition = hookPosition, rarity = fish.rarity, name = fish.name, weight = weight})
     end)
 end
 
 local function GetBackpackFishData()
-    local backpack = LocalPlayer:WaitForChild("Backpack", 5)
+    local backpack = LocalPlayer:WaitForChild("Backpack")
     local fishList = {}
     if backpack then
         for _, item in ipairs(backpack:GetChildren()) do
@@ -127,18 +154,14 @@ end
 local function TeleportToPlayer(targetName)
     local target = Players:FindFirstChild(targetName)
     local targetRoot = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-    
     UpdateCharacterCache()
-    
     if Character and targetRoot and Character.PrimaryPart then
         local targetCFrame = targetRoot.CFrame * CFrame.new(0, 5, 0)
-        
         Character:SetPrimaryPartCFrame(targetCFrame)
         return true
     end
     return false
 end
-
 
 local function StartAutoFishGiver() if GiverConnection then return end
     local lastGiveTime = tick()
@@ -207,16 +230,40 @@ Tabs.Exploits:Section({ Title = "Instant Fish Giver" })
 
 Tabs.Exploits:Dropdown({
     Title = "Select Fish Type", Values = FishNameList, Value = FishNameList[1],
-    Callback = function(val) SelectedFish = FishLookup[val]; WindUI:Notify({ Title = "Fish Selected", Content = SelectedFish.name, Duration = 2 }) end
+    Callback = function(val)
+        SelectedFish = FishLookup[val]
+        WindUI:Notify({ Title = "Fish Selected", Content = SelectedFish.name, Duration = 2 })
+    end
+})
+
+-- Weight Mode Dropdown
+Tabs.Exploits:Dropdown({
+    Title = "Weight Mode",
+    Desc = "Pilih berat ikan yang akan diberikan",
+    Values = { "Max Weight", "Min Weight", "Random Weight" },
+    Value = "Max Weight",
+    Callback = function(val)
+        if val == "Max Weight" then
+            WeightMode = "max"
+        elseif val == "Min Weight" then
+            WeightMode = "min"
+        else
+            WeightMode = "random"
+        end
+        WindUI:Notify({ Title = "Weight Mode", Content = "Mode: " .. val, Duration = 2 })
+    end
 })
 
 Tabs.Exploits:Button({
     Title = "Give Fish Once",
     Callback = function()
-        if GiveFish(SelectedFish) then
-            WindUI:Notify({ Title = "Fish Given!", Content = string.format("%s - %.1fkg", SelectedFish.name, SelectedFish.maxKg), Duration = 2 })
-        else
-            WindUI:Notify({ Title = "Error", Content = "Gagal memberi ikan.", Duration = 2 })
+        if SelectedFish then
+            local weight = GetFishWeight(SelectedFish)
+            if GiveFish(SelectedFish) then
+                WindUI:Notify({ Title = "Fish Given!", Content = string.format("%s - %.2fkg [%s]", SelectedFish.name, weight, WeightMode), Duration = 2 })
+            else
+                WindUI:Notify({ Title = "Error", Content = "Gagal memberi ikan.", Duration = 2 })
+            end
         end
     end
 })
